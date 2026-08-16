@@ -38,6 +38,8 @@ CREATE TABLE endpoint_scores (
     computed_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE INDEX idx_endpoints_user_created on (user_id, created_at DESC);
+
 CREATE TABLE INCIDENTS (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     endpoint_id UUID NOT NULL REFERENCES endpoints(id) ON DELETE CASCADE,
