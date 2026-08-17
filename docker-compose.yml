@@ -36,23 +36,39 @@ services:
   #   ports:
   #     - "3000:3000"
   
-  # scheduler:
-  #   build: ./src/scheduler
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   env_file: .env
+  scheduler:
+    build: ./src/scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
 
-  # worker:
-  #   build: ./src/worker
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   env_file: .env
+  worker:
+    build: ./src/worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+
+  probe-worker:
+    buid: ./src/worker
+    command: node probe-worker.js
+    depends_on :
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    env_file: .env
+
+  score-worker:
+    build: ./src/worker
+    command: node score-worker.js
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    env_file: .env
 
 volumes:
   pgdata:
