@@ -7,4 +7,10 @@ const connection = {
 
 export const probeQueue = new Queue("probe", { connection });
 export const scoreQueue = new Queue("score", { connection });
-export const alertQueue = new Queue("alert", { connection });
+export const alertQueue = new Queue("alert", {
+  connection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 2000 },
+  }
+});

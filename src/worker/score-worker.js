@@ -19,8 +19,8 @@ const scoreWorker = new Worker('score', async (job) => {
 
     const { rows } = await pool.query(
         `SELECT
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95_latencty,
-            COUNT(*) FILTER (WHERE status_code >= 400 or statu_code IS NULL)*1.0/COUNT(8) AS error_rate,
+            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95_latency,
+            COUNT(*) FILTER (WHERE status_code >= 400 or status_code IS NULL)*1.0/COUNT(*) AS error_rate,
             COUNT(*) FILTER (WHERE is_timeout = true)*1.0/COUNT(*) AS timeout_rate
         FROM (
             SELECT * FROM probe_results
@@ -39,7 +39,8 @@ const scoreWorker = new Worker('score', async (job) => {
         `INSERT INTO endpoint_scores (endpoint_id, score, p95_latency_ms, error_rate, timeout_rate, computed_at)
         VALUES ($1, $2, $3, $4, $5, now())
         ON CONFLICT (endpoint_id) DO UPDATE
-        SET score = $2, p95_latency, error_rate, timeeout_rate`
+        SET score = $2, p95_latency_ms = $3, error_rate = $4, timeout_rate = $5, computed_at = now()`,
+        [endpointId, score, p95_latency, error_rate, timeout_rate]
     );
 
     await redis.set(`health:${endpointId}`, JSON.stringify({ score, computed_at: new Date() }), 'EX', 120);
@@ -49,7 +50,7 @@ const scoreWorker = new Worker('score', async (job) => {
             `INSERT INTO incidents (endpoint_id) VALUES ($1) RETURNING id, alert_id`,
             [endpointId]
         );
-        await alertQueue.add('alert', { incidentId: incident.rows[0].id, alertId: incident.rows[0].alert_id, endpointsId });
+        await alertQueue.add('alert', { incidentId: incident.rows[0].id, alertId: incident.rows[0].alert_id, endpointId });
     }
 }, { connection });
 

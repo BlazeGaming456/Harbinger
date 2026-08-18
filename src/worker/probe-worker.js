@@ -47,7 +47,7 @@ const probeWorker = new Worker('probe', async (job) => {
     await pool.query(
         `INSERT INTO probe_results (endpoint_id, status_code, response_time_ms, is_timeout, error_type) VALUES ($1, $2, $3, $4, $5)`,
         [endpointId, result.status_code, result.response_time_ms, result.is_timeout, result.error_type]
-    )
+    );
 
     await scoreQueue.add('score', { endpointId });
 }, { connection });

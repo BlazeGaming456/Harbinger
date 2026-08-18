@@ -2,11 +2,14 @@ import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import { authRoutes } from './routs/auth.js';
 import { endpointRoutes } from './routes/endpoints.js';
+import { healthRoutes } from './routes/health.js';
+
 const app = Fastify({ logger: true });
 
 app.register(cookie);
 app.register(authRoutes);
 app.register(endpointRoutes);
+app.register(healthRoutes);
 
 app.get('/health', async () => ({ status: 'ok' }));
 
