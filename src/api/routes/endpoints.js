@@ -1,8 +1,9 @@
 import pool from '../../db/pool.js';
 import { requiredAuth } from '../middleware/auth.js';
+import rateLimit from '../middleware/rateLimit.js';
 
 export async function endpointRoutes(app) {
-    app.post('/endpoints', { preHandler: requireAuth}, async(req,reply) => {
+    app.post('/endpoints', { preHandler: [requireAuth, rateLimit('endpoint')] }, async(req,reply) => {
         const { url, interval_seconds } = req.body;
         const result = await pool.query(
             `INSERT INTO endpoints (user_id, url, interval_seconds, next_probe_at) VALUES ($1, $2, $3, now()) RETURNING *`,
@@ -12,7 +13,7 @@ export async function endpointRoutes(app) {
         return reply.code(201).send(result.rows[0]);
     });
 
-    app.patch('/endpoints/:id', { preHandler: requireAuth }, async (req, reply) => {
+    app.patch('/endpoints/:id', { preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {
         const { url, interval_seconds, is_active } = req.body;
         const result = await pool.query(
             `UPDATE endpoints SET url = COALESCE($1, url), interval_seconds = COALESCE($2, interval_seconds), is_active = COALESCE($3, is_active) where id = $4 and user_id = $5 RETURNING *`,
@@ -22,7 +23,7 @@ export async function endpointRoutes(app) {
         return result.rows[0];
     });
 
-    app.delete('/endpoints/:id', { preHandler: requireAuth }, async (req, reply) => {
+    app.delete('/endpoints/:id', { preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {
         const result = await pool.query(`DELETE FROM endpoints WHERE id = $1 and user_id = $2 RETURNING id`,
             [req.params.id, req.userId]
         );
@@ -31,7 +32,7 @@ export async function endpointRoutes(app) {
         return reply.code(204).send();
     });
 
-    app.get('/endpoints', { preHandler: requireAuth }, async(req, reply) => {
+    app.get('/endpoints', { preHandler: [requireAuth, rateLimit('endpoint')] }, async(req, reply) => {
         const { cursor, limit = 20 } = req.query;
         const capped = Math.min(Number(limit), 50) ;
 

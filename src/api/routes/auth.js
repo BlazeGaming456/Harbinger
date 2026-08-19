@@ -2,9 +2,10 @@ import bcrypt from "bcrypt";
 import pool from "../../db/pool.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import rateLimit from '../middleware/rateLimit.js';
 
 export async function authRoutes(app) {
-  app.post("/auth/signup", async (request, reply) => {
+  app.post("/auth/signup", { preHandler: rateLimit('signup') }, async (request, reply) => {
     const { email, password } = request.body;
     const hash = await bcrypt.hash(password, 10);
 
@@ -16,7 +17,7 @@ export async function authRoutes(app) {
     return reply.code(201).send(result.rows[0]);
   });
 
-  app.post("/auth/login", async (request, reply) => {
+  app.post("/auth/login", { preHandler: rateLimit('login') }, async (request, reply) => {
     const { email, password } = request.body;
     const result = await pool.query(`SELECT * FROM users WHERE email = $1`, [
       email,

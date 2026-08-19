@@ -3,7 +3,7 @@ import pool from '../../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 
 export async function healthRoutes(app) {
-    app.get('/health/:endpointId', { preHandler: requireAuth }, async (req, reply) => {
+    app.get('/health/:endpointId', { preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {
         const { endpointId } = req.params;
 
         const owns = await pool.query(
