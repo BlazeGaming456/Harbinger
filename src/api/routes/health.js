@@ -1,6 +1,7 @@
 import redis from '../../db/redis.js';
 import pool from '../../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
+import rateLimit from '../middleware/rateLimit.js';
 
 export async function healthRoutes(app) {
     app.get('/health/:endpointId', { preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {

@@ -27,7 +27,7 @@ CREATE TABLE probe_results (
     probed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_probe_results_endpoint_time on probe_results(endpoint_id, probed_at DESC);
+CREATE INDEX idx_probe_results_endpoint_time on probe_results (endpoint_id, probed_at DESC);
 
 CREATE TABLE endpoint_scores (
     endpoint_id UUID PRIMARY KEY REFERENCES endpoints(id) ON DELETE CASCADE,
@@ -38,7 +38,7 @@ CREATE TABLE endpoint_scores (
     computed_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_endpoints_user_created on (user_id, created_at DESC);
+CREATE INDEX idx_endpoints_user_created on endpoints (user_id, created_at DESC);
 
 CREATE TABLE INCIDENTS (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

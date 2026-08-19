@@ -1,9 +1,20 @@
 import pool from '../../db/pool.js';
-import { requiredAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import rateLimit from '../middleware/rateLimit.js';
 
+const createEndpointSchema = {
+    body: {
+        type: 'object',
+        required: ['url'],
+        properties: {
+            url: { type: 'string', format: 'url' },
+            interval_seconds: { type: 'integer', minimum: 10, maximum: 86400 },
+        },
+    },
+};
+
 export async function endpointRoutes(app) {
-    app.post('/endpoints', { preHandler: [requireAuth, rateLimit('endpoint')] }, async(req,reply) => {
+    app.post('/endpoints', { schema: createEndpointSchema }, { preHandler: [requireAuth, rateLimit('endpoint')] }, async(req,reply) => {
         const { url, interval_seconds } = req.body;
         const result = await pool.query(
             `INSERT INTO endpoints (user_id, url, interval_seconds, next_probe_at) VALUES ($1, $2, $3, now()) RETURNING *`,

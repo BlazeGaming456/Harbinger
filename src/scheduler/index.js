@@ -1,5 +1,11 @@
 import pool from '../db/pool.js';
 import { probeQueue } from '../queues/index.js';
+import * as Sentry from '@sentry/node';
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: 0.1
+});
 
 const POLL_INTERVAL_MS = 5000; //Check every 5 seconds
 
@@ -27,6 +33,7 @@ async function scheduleTick() {
 
 setInterval(() => {
     scheduleTick().catch(err => {
+        Sentry.captureException(err);
         console.error('Scheduler error: ', err);
     })
 }, POLL_INTERVAL_MS);

@@ -2,6 +2,15 @@ import { Worker } from 'bullmq';
 import pool from '../db/pool.js';
 import redis from '../db/redis.js';
 import { alertQueue } from '../queues/index.js';
+import pino from 'pino';
+import * as Sentry from '@sentry/node';
+
+Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    tracesSampleRate: 0.1
+})
+
+const logger = pino();
 
 const connection = {
     host: process.env.REDIS_HOST || 'localhost',
@@ -15,8 +24,15 @@ function computeScore({ p95_latency, error_rate, timeout_rate, baseline_p95 }) {
 }
 
 const scoreWorker = new Worker('score', async (job) => {
-    const { endpointId } = job.data;
+    const { endpointId, traceId } = job.data;
 
+    const jobLogger = logger.child({
+        jobId: job.id,
+        endpointId,
+        traceId
+    })
+
+    jobLogger.info('Starting score calculation');
     const { rows } = await pool.query(
         `SELECT
             PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95_latency,
@@ -45,13 +61,28 @@ const scoreWorker = new Worker('score', async (job) => {
 
     await redis.set(`health:${endpointId}`, JSON.stringify({ score, computed_at: new Date() }), 'EX', 120);
 
+    jobLogger.info({ score }, 'Score calculation complete');
+
     if (score > 0.7) {
         const incident = await pool.query(
             `INSERT INTO incidents (endpoint_id) VALUES ($1) RETURNING id, alert_id`,
             [endpointId]
         );
-        await alertQueue.add('alert', { incidentId: incident.rows[0].id, alertId: incident.rows[0].alert_id, endpointId });
+        await alertQueue.add('alert', { incidentId: incident.rows[0].id, alertId: incident.rows[0].alert_id, endpointId, traceId });
+        jobLogger.info('Alert job created');
     }
 }, { connection });
+
+scoreWorker.on('completed', (job) => console.log(`Job ${job.id} done`));
+scoreWorker.on('failed', (job, err) => Sentry.captureException(err, { extra: { jobId: job.id, endpointId: job.data.endpointId }}));
+
+//Shutting down gracefully
+process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    await alertWorker.close();
+    await pool.end();
+    await redis.quit();
+    process.exit(0);
+})
 
 console.log('Score worker running');

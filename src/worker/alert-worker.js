@@ -1,5 +1,14 @@
 import { Worker } from 'bullmq';
 import pool from '../db/pool.js';
+import pino from 'pino';
+import * as Sentry from '@sentry/node';
+
+Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    tracesSampleRate: 0.1
+})
+
+const logger = pino();
 
 const connection = {
     host: process.env.REDIS_HOST || 'localhost',
@@ -7,15 +16,25 @@ const connection = {
 };
 
 const alertWorker = new Worker('alert', async (job) => {
-    const { incidentId, alertId, endpointId } = job.data;
+    const { incidentId, alertId, endpointId, traceId } = job.data;
     
+    const jobLogger = logger.child({
+        jobId: job.id,
+        incidentId,
+        alertId,
+        endpointId,
+        traceId
+    })
+
+    jobLogger.info('Starting alert delivery')
+
     const check = await pool.query(
         `SELECT alert_sent FROM incidents where id = $1`,
         [incidentId]
     );
 
     if (check.rows[0]?.alert_sent) {
-        console.log(`Alert ${alert_id} already sent, skipping`);
+        console.log(`Alert ${alertId} already sent, skipping`);
         return;
     }
 
@@ -53,9 +72,19 @@ const alertWorker = new Worker('alert', async (job) => {
     await pool.query(`UPDATE incidents SET alert_sent = true WHERE id = $1`,
         [incidentId]
     );
+
+    jobLogger.info('Alert delivered successfully');
 }, { connection });
 
 alertWorker.on('complete', (job) => console.log(`Alert ${job.id} delivered`));
-alertWorker.on('failed', (job) => console.error(`Alert ${job.id} failed, err`));
+alertWorker.on('failed', (job, err) => Sentry.captureException(err, { extra: { jobId: job.id, endpointId: job.data.endpointId }}));
+
+//Shutting down gracefully
+process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    await alertWorker.close();
+    await pool.end();
+    process.exit(0);
+})
 
 console.log('Alert worker running');

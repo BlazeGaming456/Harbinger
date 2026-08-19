@@ -4,13 +4,25 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import rateLimit from '../middleware/rateLimit.js';
 
+//Input validation
+const signupSchema = {
+  body: {
+    type: 'object',
+    required: ['email', 'password'],
+    properties: {
+      email: { type: 'string', format: 'email' },
+      password: {type: 'string', minLength: 8 },
+    },
+  },
+};
+
 export async function authRoutes(app) {
-  app.post("/auth/signup", { preHandler: rateLimit('signup') }, async (request, reply) => {
+  app.post("/auth/signup", { schema: signupSchema }, { preHandler: rateLimit('signup') }, async (request, reply) => {
     const { email, password } = request.body;
     const hash = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `INSERT INTO users (email, password) VALUES (&1, $2) returning id, email`,
+      `INSERT INTO users (email, password_hash) VALUES ($1, $2) returning id, email`,
       [email, hash],
     );
 
@@ -24,7 +36,7 @@ export async function authRoutes(app) {
     ]);
 
     const user = result.rows[0];
-    if (!user || (await bcrypt.compare(password, user.password_hash))) {
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       return reply.code(401).send({ error: "Invalid Credentials!" });
     }
 
@@ -58,8 +70,8 @@ export async function authRoutes(app) {
       return reply.code(401).send({ error: "No refresh token provided!" });
     }
 
-    const oldhash = crypto.createHash("sha256").update(oldToken).digest("hex");
-    const result = await poo.query(
+    const oldHash = crypto.createHash("sha256").update(oldToken).digest("hex");
+    const result = await pool.query(
       `SELECT * FROM refresh_tokens WHERE token_hash = $1 AND revoked = false AND expires_at > now()`,
       [oldHash],
     );
@@ -102,7 +114,7 @@ export async function authRoutes(app) {
   });
 
   app.post("/auth/logout", async (request, reply) => {
-    const token = request.cookies.refreshTokenl;
+    const token = request.cookies.refreshToken;
     if (token) {
       const hash = crypto.createHash("sha256").update(token).digest("hex");
       await pool.query(

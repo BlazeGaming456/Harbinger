@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import * as Sentry from '@sentry/node';
 import { randomUUID } from 'crypto';
-import { authRoutes } from './routs/auth.js';
+import { authRoutes } from './routes/auth.js';
 import { endpointRoutes } from './routes/endpoints.js';
 import { healthRoutes } from './routes/health.js';
 
@@ -35,7 +35,7 @@ app.get('/health', async () => ({ status: 'ok' }));
 
 const start = async () => {
     try {
-        await app.listen({ port: 300, host: '0.0.0.0' });
+        await app.listen({ port: 3000, host: '0.0.0.0' });
     }
     catch (err) {
         app.log.error(err);
@@ -44,3 +44,9 @@ const start = async () => {
 }
 
 start();
+
+//Shutting down gracefully
+process.on('SIGTERM', async () => {
+    await app.close();
+    process.exit(0);
+})
