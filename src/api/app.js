@@ -5,11 +5,56 @@ import { randomUUID } from 'crypto';
 import { authRoutes } from './routes/auth.js';
 import { endpointRoutes } from './routes/endpoints.js';
 import { healthRoutes } from './routes/health.js';
+import client from 'prom-client';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 
 const app = Fastify({
     logger: true,
     genReqId: (req) => req.headers['x-request-id'] || randomUUID(),
 });
+
+//API documentation via swagger
+await app.register(swagger, {
+    openapi: {
+        info: { title: 'Harbinger API', version:  '1.0.0' },
+    },
+});
+
+await app.register(swaggerUi, { routePrefix: '/docs' });
+
+
+// ---------------
+//Metrics
+const register = new client.Registry(); //A box where the metrics are stored
+client.collectDefaultMetrics({ register });
+
+//Custom metric component
+const httpRequestDuration = new client.Histogram({
+    name: 'http_request_duration_ms',
+    help: 'Duration of HTTP request in ms',
+    labelNames: ['method', 'route', 'status_code'],
+});
+
+register.registerMetric(httpRequestDuration);
+
+app.addHook('onResponse', (req, reply, done) => {
+    //Measuring the custom metric
+    httpRequestDuration.observe(
+        { method: req.method,
+        route: req.routerPath,
+        status_code: reply.status_code, },
+        reply.getResponseTime()
+    );
+    done();
+})
+
+app.get('/metrics', async (req, reply) => {
+    reply.header('Content-Type', register.contentType);
+    return register.metrics();
+});
+
+// ---------------
 
 Sentry.init({
     dsn: process.env.SENTRY_DSN,
