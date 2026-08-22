@@ -4,6 +4,17 @@ import redis from '../db/redis.js';
 import { alertQueue } from '../queues/index.js';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
+import client from 'prom-client';
+
+// ---------------
+//Metrics - Example
+//If we create a server for scoreWorker, then the metrics will appear at /metrics
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+const incidentOpened = new client.Counter({ name: 'incidents_opened_total', help: 'Total incidents opened'});
+register.registerMetric(incidentOpened);
+
+// ---------------
 
 Sentry.init({
     dsn: process.env.SENTRY_DSN,
@@ -68,6 +79,7 @@ const scoreWorker = new Worker('score', async (job) => {
             `INSERT INTO incidents (endpoint_id) VALUES ($1) RETURNING id, alert_id`,
             [endpointId]
         );
+        incidentOpened.inc(); //Increment the Prometheus metric
         await alertQueue.add('alert', { incidentId: incident.rows[0].id, alertId: incident.rows[0].alert_id, endpointId, traceId });
         jobLogger.info('Alert job created');
     }
@@ -79,7 +91,7 @@ scoreWorker.on('failed', (job, err) => Sentry.captureException(err, { extra: { j
 //Shutting down gracefully
 process.on('SIGTERM', async () => {
     console.log('SIGTERM received, shutting down gracefully');
-    await alertWorker.close();
+    await scoreWorker.close();
     await pool.end();
     await redis.quit();
     process.exit(0);

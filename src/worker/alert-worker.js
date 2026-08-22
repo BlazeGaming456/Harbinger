@@ -15,6 +15,10 @@ const connection = {
     port: process.env.REDIS_PORT || 6379,
 };
 
+function shouldSendAlert(incident) {
+    return !incident.alertSent;
+}
+
 const alertWorker = new Worker('alert', async (job) => {
     const { incidentId, alertId, endpointId, traceId } = job.data;
     
@@ -33,41 +37,86 @@ const alertWorker = new Worker('alert', async (job) => {
         [incidentId]
     );
 
-    if (check.rows[0]?.alert_sent) {
+    if (check.rows.length === 0) {
+        throw new Error(
+            `Incident ${incidentId} not found`
+        );
+    }
+
+    if (check.rows[0].alert_sent) {
         console.log(`Alert ${alertId} already sent, skipping`);
         return;
     }
 
     const userResult = await pool.query(
-        `SELECT u.webhook_url, e.url AS endpoint_url
-        FROM incidents i
-        JOIN endpoints e on e.id = i.endpoint_id
-        JOIN users u on u.id = e.user_id
-        WHERE i.id = $1`,
+        `SELECT
+            u.email,
+            u.alert_channel,
+            u.alert_target,
+            e.url as endpoint_url
+        from incidents i
+        JOIN endpoints e
+            on e.id = i.endpoint_id
+        JOIN users u
+            on u.id = e.user_id
+        where i.id = &1`
         [incidentId]
     );
-    const { webhook_url, endpoint_url } = userResult.rows[0];
 
-    if (!webhook_url) {
-        console.log(`No webhook configured for incident ${incidentId}, skipping`);
-        return;
+    if (userResult.rows.length === 0) {
+        throw new Error(
+            `Could not finf user/endpoint for incident ${incidentId}`
+        );
     }
 
-    const response = await fetch(webhook_url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            alert_id: alertId,
-            incident_id: incidentId,
-            endpoint_url,
-            message: `Endpoint ${endpoint_url} is degraded`,
-            timestamp: new Date().toISOString(),
-        }),
-    });
+    const deliver = CHANNELS[alert_channel];
 
-    if (!response.ok) {
-        throw new Error(`Webhook delivery failed with status ${response.status}`);
+    if (!deliver) {
+        throw new Error(
+            `Unknown alert channel: ${alert_channel}`
+        );
     }
+
+    if (!alert_target) {
+        throw new Error(
+            `No alert target configured for user ${email}`
+        );
+    }
+
+    //Create common payload
+    const payload = {
+        alert_id: alertId,
+        incident_id: incidentId,
+        endpoint_id: endpointId,
+        endpoint_url,
+        message: `Endpoint ${endpoint_url} is degraded`,
+        timestamp: new Date().toISOString(),
+    };
+
+    await deliver(alert_target, payload);
+
+    // const { webhook_url, endpoint_url } = userResult.rows[0];
+
+    // if (!webhook_url) {
+    //     console.log(`No webhook configured for incident ${incidentId}, skipping`);
+    //     return;
+    // }
+
+    // const response = await fetch(webhook_url, {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify({
+    //         alert_id: alertId,
+    //         incident_id: incidentId,
+    //         endpoint_url,
+    //         message: `Endpoint ${endpoint_url} is degraded`,
+    //         timestamp: new Date().toISOString(),
+    //     }),
+    // });
+
+    // if (!response.ok) {
+    //     throw new Error(`Webhook delivery failed with status ${response.status}`);
+    // }
 
     await pool.query(`UPDATE incidents SET alert_sent = true WHERE id = $1`,
         [incidentId]

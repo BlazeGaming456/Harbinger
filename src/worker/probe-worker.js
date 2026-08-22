@@ -3,6 +3,7 @@ import pool from '../db/pool.js';
 import { scoreQueue } from '../queues/index.js';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
+import { isCircuitOpen, recordResult } from './circuitBreaker.js';
 
 Sentry.init({
     dsn: process.env.SENTRY_DSN,
@@ -51,11 +52,21 @@ async function probeUrl(url, timeoutMs = 10000) {
 
 const probeWorker = new Worker('probe', async (job) => {
     const { endpointId, url } = job.data;
+    
+    //Circuit breaker
+    if (await isCircuitOpen(endpointId)) {
+        console.log(`Circuit open for ${endpointId}, skipping real probe`);
+        return;
+    }
+    
     const jobLogger = logger.child({ jobId: job.id, endpointId});
     
     jobLogger.info({ url }, 'Starting probe');
     const result = await probeUrl(url);
     jobLogger.info({ result }, 'Probe complete');
+
+    //Record for circuit breaker
+    await recordResult(endpointId, result.status_code != null && result.status_code < 500);
 
     await pool.query(
         `INSERT INTO probe_results (endpoint_id, status_code, response_time_ms, is_timeout, error_type) VALUES ($1, $2, $3, $4, $5)`,
