@@ -71,5 +71,16 @@ export async function endpointRoutes(app) {
         const nextCursor = rows.length === capped ? rows[rows.length-1].created_at : null;
 
         return { data: rows, nextCursor };
+    });
+
+    app.get('/endpoints/:id/probes', { preHandler: requireAuth }, async(req, reply) => {
+        const result = await pool.query(
+            `SELECT pr .* FROM probe_results pr
+            JOIN endpoints e ON e.id = pr.endpoint_id
+            WHERE pr.endpoint_id = $1 AND e.user_id = $2
+            ORDER BY pr.probed_at DESC LIMIT 50`,
+            [req.params.id, req.userId]
+        );
+        return result.rows.reverse();
     })
 }

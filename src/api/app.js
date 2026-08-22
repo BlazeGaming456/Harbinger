@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { authRoutes } from './routes/auth.js';
 import { endpointRoutes } from './routes/endpoints.js';
 import { healthRoutes } from './routes/health.js';
+import { userRoutes } from './routes/users.js';
 import client from 'prom-client';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -75,6 +76,7 @@ app.register(cookie);
 app.register(authRoutes);
 app.register(endpointRoutes);
 app.register(healthRoutes);
+app.register(userRoutes);
 
 app.get('/health', async () => ({ status: 'ok' }));
 
