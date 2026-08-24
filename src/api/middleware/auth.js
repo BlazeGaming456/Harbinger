@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 
 export async function requireAuth(req, reply) {
-    const authHeader = req.header.authorization;
+    const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
         return reply.code(401).send({ error: 'Missing token' });
     }

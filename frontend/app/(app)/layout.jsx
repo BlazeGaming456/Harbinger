@@ -1,10 +1,12 @@
 import Sidebar from '@/components/Sidebar.js';
 
 export default function AppLayout({ children }) {
-    return (
-        <div className="flex">
-            <Sidebar/>
-            <main className="flex-1 p-8">{children}</main>
-        </div>
-    );
+  return (
+    <div className="app-shell">
+      <Sidebar />
+      <div className="app-main">
+        <div className="app-content">{children}</div>
+      </div>
+    </div>
+  );
 }

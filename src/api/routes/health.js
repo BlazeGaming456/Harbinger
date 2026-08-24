@@ -1,7 +1,7 @@
 import redis from '../../db/redis.js';
 import pool from '../../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
-import rateLimit from '../middleware/rateLimit.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 export async function healthRoutes(app) {
     app.get('/health/:endpointId', { preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {
@@ -16,7 +16,14 @@ export async function healthRoutes(app) {
         //Cache aside: try Redis first
         const cached = await redis.get(`health:${endpointId}`);
         if (cached) {
-            return { ...JSON.parse(cached), source: 'cache' };
+            const data = JSON.parse(cached);
+            return {
+                ...data,
+                score: data.score != null ? Number(data.score) : null,
+                error_rate: data.error_rate != null ? Number(data.error_rate) : null,
+                timeout_rate: data.timeout_rate != null ? Number(data.timeout_rate) : null,
+                source: 'cache',
+            };
         }
 
         //Cache miss- fall back to Postgres
@@ -25,12 +32,19 @@ export async function healthRoutes(app) {
             [endpointId]
         );
         if (!result.rows[0]) {
-            return { score: null, message: 'No data yet', source: 'db'};
+            return { score: null, message: 'No data yet', source: 'db' };
         }
 
-        //Populate cache for next read
-        await redis.set(`health:${endpointId}`, JSON.stringify(result.rows[0]), 'EX', 120);
+        const row = result.rows[0];
+        const payload = {
+            ...row,
+            score: row.score != null ? Number(row.score) : null,
+            error_rate: row.error_rate != null ? Number(row.error_rate) : null,
+            timeout_rate: row.timeout_rate != null ? Number(row.timeout_rate) : null,
+        };
 
-        return { ...result.rows[0], source: 'db' };
+        await redis.set(`health:${endpointId}`, JSON.stringify(payload), 'EX', 120);
+
+        return { ...payload, source: 'db' };
     });
 }

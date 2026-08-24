@@ -1,6 +1,13 @@
 import pool from '../../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
-import rateLimit from '../middleware/rateLimit.js';
+import { rateLimit } from '../middleware/rateLimit.js';
+
+function normalizeEndpoint(row) {
+    return {
+        ...row,
+        score: row.score != null ? Number(row.score) : null,
+    };
+}
 
 const createEndpointSchema = {
     body: {
@@ -14,7 +21,7 @@ const createEndpointSchema = {
 };
 
 export async function endpointRoutes(app) {
-    app.post('/endpoints', { schema: createEndpointSchema }, { preHandler: [requireAuth, rateLimit('endpoint')] }, async(req,reply) => {
+    app.post('/endpoints', { schema: createEndpointSchema, preHandler: [requireAuth, rateLimit('endpoint')] }, async(req,reply) => {
         const { url, interval_seconds } = req.body;
         const result = await pool.query(
             `INSERT INTO endpoints (user_id, url, interval_seconds, next_probe_at) VALUES ($1, $2, $3, now()) RETURNING *`,
@@ -50,25 +57,29 @@ export async function endpointRoutes(app) {
         let result;
         if (cursor) {
             result = await pool.query(
-                `SELECT * FROM endpoints
-                WHERE user_id = $1 and created_at < $2
-                ORDER BY created_at DESC
+                `SELECT e.*, es.score
+                FROM endpoints e
+                LEFT JOIN endpoint_scores es ON es.endpoint_id = e.id
+                WHERE e.user_id = $1 and e.created_at < $2
+                ORDER BY e.created_at DESC
                 LIMIT $3`,
                 [req.userId, cursor, capped]
             );
         }
         else {
             result = await pool.query(
-                `SELECT * FROM endpoints
-                WHERE user_id = $1
-                ORDER BY created_at DESC
+                `SELECT e.*, es.score
+                FROM endpoints e
+                LEFT JOIN endpoint_scores es ON es.endpoint_id = e.id
+                WHERE e.user_id = $1
+                ORDER BY e.created_at DESC
                 LIMIT $2`,
                 [req.userId, capped]
             );
         }
 
-        const rows = result.rows;
-        const nextCursor = rows.length === capped ? rows[rows.length-1].created_at : null;
+        const rows = result.rows.map(normalizeEndpoint);
+        const nextCursor = rows.length === capped ? rows[rows.length - 1].created_at : null;
 
         return { data: rows, nextCursor };
     });
@@ -82,5 +93,17 @@ export async function endpointRoutes(app) {
             [req.params.id, req.userId]
         );
         return result.rows.reverse();
-    })
+    });
+
+    app.get('/endpoints/:id', { preHandler: requireAuth }, async (req, reply) => {
+        const result = await pool.query(
+            `SELECT e.*, es.score
+             FROM endpoints e
+             LEFT JOIN endpoint_scores es ON es.endpoint_id = e.id
+             WHERE e.id = $1 AND e.user_id = $2`,
+            [req.params.id, req.userId]
+        );
+        if (!result.rows[0]) return reply.code(404).send({ error: 'Not found' });
+        return normalizeEndpoint(result.rows[0]);
+    });
 }

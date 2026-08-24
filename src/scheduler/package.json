@@ -1,6 +1,7 @@
 {
   "name": "scheduler",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -10,8 +11,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@sentry/node": "^10.70.0",
     "bullmq": "^6.1.2",
     "dotenv": "^17.4.2",
+    "ioredis": "^6.0.0",
     "pg": "^8.23.0"
   }
 }

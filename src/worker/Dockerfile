@@ -4,8 +4,8 @@ WORKDIR /app
 COPY src/worker/package*.json ./
 RUN npm install
 
-COPY src/worker ./
-COPY src/db ../db
-COPY src/queues ../queues
+COPY src/worker ./src/worker
+COPY src/db ./src/db
+COPY src/queues ./src/queues
 
 CMD ["node", "probe-worker.js"]

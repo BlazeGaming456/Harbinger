@@ -9,35 +9,37 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
+    setLoading(true);
     try {
       await client.post('/auth/signup', { email, password });
       await login(email, password);
       router.push('/dashboard');
-    } catch {
-      setError('Could not create account — email may already be in use.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.error || 'Could not create your account.');
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-xl p-8">
-      <h1 className="text-xl font-semibold mb-6">Create your account</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)}
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm" />
-        <input type="password" placeholder="Password (min 8 characters)" value={password} onChange={(e) => setPassword(e.target.value)}
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm" />
-        {error && <p className="text-red-400 text-sm">{error}</p>}
-        <button className="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-medium rounded-lg py-2 text-sm">Sign up</button>
+    <section className="auth-card">
+      <div className="auth-kicker">Get started</div>
+      <h1>Create account</h1>
+      <p className="auth-description">Monitor your first endpoint in under a minute.</p>
+      <form onSubmit={handleSubmit} className="auth-form">
+        <label className="label">Email<input required type="email" className="input" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+        <label className="label">Password<input required minLength={8} type="password" className="input" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button type="submit" className="auth-submit" disabled={loading}>{loading ? 'Creating account…' : 'Create account'}</button>
       </form>
-      <p className="text-zinc-500 text-sm mt-4">
-        Already have an account? <Link href="/login" className="text-emerald-400">Log in</Link>
-      </p>
-    </div>
+      <p className="auth-switch">Already have an account? <Link href="/login">Sign in</Link></p>
+    </section>
   );
 }

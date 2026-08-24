@@ -3,53 +3,66 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import client from '@/lib/client.js';
-import CreateEndpointModal from '@/components/CreateEndpointModal.js';
-
-function statusColor(score) {
-    if (score == null) return 'bg-zinc-600';
-    if (score < 0.3) return 'bg-emerald-400';
-    if (score < 0.7) return 'bg-amber-400';
-    return 'bg-red-400';
-}
+import CreateEndpointModal from '@/components/CreateEndpointModal.jsx';
+import NextProbeCountdown from '@/components/NextProbeCountdown.jsx';
+import { useAuth } from '@/context/AuthContext.jsx';
+import { statusClass } from '@/lib/score.js';
 
 export default function EndpointsPage() {
     const [endpoints, setEndpoints] = useState([]);
     const [showModal, setShowModal] = useState(false);
+    const [error, setError] = useState(null);
+    const { ready, authenticated } = useAuth();
 
     async function load() {
-        const { data } = await client.get('/endpoints');
-        setEndpoints(data.data);
+        try {
+            const { data } = await client.get('/endpoints');
+            setEndpoints(data.data);
+            setError(null);
+        } catch {
+            setError('Could not load endpoints.');
+        }
     }
 
     useEffect(() => {
+        if (!ready || !authenticated) return;
         load();
-    }, []);
+    }, [ready, authenticated]);
+
+    if (!ready) return <div className="loading-state">Restoring session…</div>;
+    if (!authenticated) return <div className="empty-state">Session expired. Please log in again.</div>;
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-semibold">Endpoints</h1>
-                <button onClick={() => setShowModal(true)}>
+            <header className="page-header-row">
+                <div>
+                    <h1 className="page-title">Endpoints</h1>
+                    <p className="page-desc">All URLs you&apos;re actively monitoring.</p>
+                </div>
+                <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
                     <Plus size={16} /> Add endpoint
                 </button>
-            </div>
+            </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {error && <div className="form-error" style={{ marginBottom: 24 }}>{error}</div>}
+
+            <div className="feature-grid stagger">
                 {endpoints.map((ep) => (
-                    <Link key={ep.id} href={`/endpoints/${ep.id}`}
-                        className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className={`w-2 h-2 rounded-full ${statusColor(ep.score)}`} />
-                            <span className="font-medium truncate">{ep.url}</span>
+                    <Link key={ep.id} href={`/endpoints/${ep.id}`} className="card card-hover endpoint-card">
+                        <div className="endpoint-card-header">
+                            <span className={`status-dot ${statusClass(ep.score)}`} />
+                            <span className="endpoint-card-url">{ep.url}</span>
                         </div>
-                        <p className="text-zinc-500 text-xs font-mono">Checks every {ep.interval_seconds}s</p>
+                        <span className="endpoint-meta">Every {ep.interval_seconds}s</span>
+                        <NextProbeCountdown nextProbeAt={ep.next_probe_at} />
                     </Link>
                 ))}
             </div>
 
-            {endpoints.length === 0 && (
-                <div className="text-center text-zinc-600 mt-20">
-                    No endpoints yet - add your first one.
+            {endpoints.length === 0 && !error && (
+                <div className="empty-state">
+                    <p style={{ marginBottom: 16 }}>No endpoints yet.</p>
+                    <button type="button" onClick={() => setShowModal(true)} className="btn btn-secondary">Add your first endpoint</button>
                 </div>
             )}
 

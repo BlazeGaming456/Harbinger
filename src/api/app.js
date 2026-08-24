@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
 import * as Sentry from '@sentry/node';
 import { randomUUID } from 'crypto';
 import { authRoutes } from './routes/auth.js';
@@ -39,13 +40,18 @@ const httpRequestDuration = new client.Histogram({
 
 register.registerMetric(httpRequestDuration);
 
+app.addHook('onRequest', (req, reply, done) => {
+    req.startTime = process.hrtime.bigint();
+    done();
+});
+
 app.addHook('onResponse', (req, reply, done) => {
     //Measuring the custom metric
     httpRequestDuration.observe(
         { method: req.method,
         route: req.routerPath,
         status_code: reply.status_code, },
-        reply.getResponseTime()
+        Number(process.hrtime.bigint() - req.startTime) / 1e6
     );
     done();
 })
@@ -67,12 +73,17 @@ app.setErrorHandler((error, request, reply) => {
 
     request.log.error(error);
 
-    reply.code(500).send({
-        error: 'Internal Server Error'
+    const statusCode = error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 500;
+    reply.code(statusCode).send({
+        error: statusCode === 500 ? 'Internal Server Error' : error.message,
     });
 });
 
 app.register(cookie);
+app.register(cors, {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+    credentials: true,
+});
 app.register(authRoutes);
 app.register(endpointRoutes);
 app.register(healthRoutes);

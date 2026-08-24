@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import pool from "../../db/pool.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import rateLimit from '../middleware/rateLimit.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 //Input validation
 const signupSchema = {
@@ -16,21 +16,36 @@ const signupSchema = {
   },
 };
 
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+function normalizeEmail(email) {
+  return email.trim().toLowerCase();
+}
+
 export async function authRoutes(app) {
-  app.post("/auth/signup", { schema: signupSchema }, { preHandler: rateLimit('signup') }, async (request, reply) => {
-    const { email, password } = request.body;
+  app.post("/auth/signup", { schema: signupSchema, preHandler: rateLimit('signup') }, async (request, reply) => {
+    const email = normalizeEmail(request.body.email);
+    const { password } = request.body;
     const hash = await bcrypt.hash(password, 10);
 
-    const result = await pool.query(
-      `INSERT INTO users (email, password_hash) VALUES ($1, $2) returning id, email`,
-      [email, hash],
-    );
+    try {
+      const result = await pool.query(
+        `INSERT INTO users (email, password_hash) VALUES ($1, $2) returning id, email`,
+        [email, hash],
+      );
 
-    return reply.code(201).send(result.rows[0]);
+      return reply.code(201).send(result.rows[0]);
+    } catch (error) {
+      if (error.code === '23505') {
+        return reply.code(409).send({ error: 'An account with that email already exists.' });
+      }
+      throw error;
+    }
   });
 
   app.post("/auth/login", { preHandler: rateLimit('login') }, async (request, reply) => {
-    const { email, password } = request.body;
+    const email = normalizeEmail(request.body.email);
+    const { password } = request.body;
     const result = await pool.query(`SELECT * FROM users WHERE email = $1`, [
       email,
     ]);
@@ -56,12 +71,54 @@ export async function authRoutes(app) {
 
     reply.setCookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: "strict",
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: "lax",
+      path: '/',
       maxAge: 7 * 24 * 60 * 60,
     });
 
     return { accessToken };
+  });
+
+  app.post('/auth/forgot-password', async (request, reply) => {
+    const email = normalizeEmail(request.body.email || '');
+    const result = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const response = { message: 'If an account exists, a reset link has been created.' };
+
+    if (result.rows[0]) {
+      const token = crypto.randomBytes(32).toString('hex');
+      await pool.query('UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false', [result.rows[0].id]);
+      await pool.query(
+        `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, now() + INTERVAL '1 hour')`,
+        [result.rows[0].id, hashToken(token)],
+      );
+      response.resetToken = token;
+    }
+
+    return reply.send(response);
+  });
+
+  app.post('/auth/reset-password', async (request, reply) => {
+    const { token, password } = request.body;
+    if (!token || typeof password !== 'string' || password.length < 8) {
+      return reply.code(400).send({ error: 'A valid reset token and password of at least 8 characters are required.' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, user_id FROM password_reset_tokens
+       WHERE token_hash = $1 AND used = false AND expires_at > now()`,
+      [hashToken(token)],
+    );
+    const resetToken = result.rows[0];
+    if (!resetToken) return reply.code(400).send({ error: 'This reset link is invalid or expired.' });
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, resetToken.user_id]);
+    await pool.query('UPDATE password_reset_tokens SET used = true WHERE id = $1', [resetToken.id]);
+    await pool.query('UPDATE refresh_tokens SET revoked = true WHERE user_id = $1', [resetToken.user_id]);
+
+    return reply.send({ message: 'Password updated successfully.' });
   });
 
   app.post("/auth/refresh", async (request, reply) => {
@@ -105,8 +162,9 @@ export async function authRoutes(app) {
 
     reply.setCookie("refreshToken", newRefreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: "strict",
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: "lax",
+      path: '/',
       maxAge: 7 * 24 * 60 * 60,
     });
 

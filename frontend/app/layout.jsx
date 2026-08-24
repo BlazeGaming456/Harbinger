@@ -1,5 +1,5 @@
 import { Inter, JetBrains_Mono } from "next/font/google";
-import { AuthProvider } from '@/context/AuthContext.js'
+import { AuthProvider } from '@/context/AuthContext.jsx'
 import "./globals.css";
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
@@ -15,7 +15,7 @@ export default function RootLayout({ children }) {
     <html
       lang="en"
     >
-      <body className={`${inter.variable} ${mono.variable} bg-zinc-950 text-zinc-100`}>
+      <body className={`${inter.variable} ${mono.variable}`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
