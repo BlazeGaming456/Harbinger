@@ -48,6 +48,9 @@ client.interceptors.response.use(
         return client(err.config);
       } catch {
         setAccessToken(null);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('auth:unauthorized'));
+        }
       }
     }
     return Promise.reject(err);

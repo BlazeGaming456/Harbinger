@@ -4,8 +4,8 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 export default function LatencyChart({ probes }) {
   if (!probes.length) {
     return (
-      <div className="card chart-wrap">
-        <p className="stat-label">Response time</p>
+      <div className="card chart-wrap app-panel-interactive">
+        <p className="card-heading">Response time</p>
         <p className="chart-empty">No probe results yet.</p>
       </div>
     );
@@ -17,8 +17,8 @@ export default function LatencyChart({ probes }) {
   }));
 
   return (
-    <div className="card chart-wrap">
-      <p className="stat-label">Response time (ms)</p>
+    <div className="card chart-wrap app-panel-interactive">
+      <p className="card-heading">Response time (ms)</p>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(34, 211, 238, 0.08)" vertical={false} />

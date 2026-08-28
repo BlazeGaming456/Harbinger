@@ -21,6 +21,15 @@ export function AuthProvider({ children }) {
                 try { await client.post('/auth/logout'); } catch {}
             })
             .finally(() => setReady(true));
+
+        const handleUnauthorized = () => {
+            setAccessToken(null);
+            setUser(null);
+            setAuthenticated(false);
+        };
+
+        window.addEventListener('auth:unauthorized', handleUnauthorized);
+        return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
     }, []);
 
     async function login(email, password) {

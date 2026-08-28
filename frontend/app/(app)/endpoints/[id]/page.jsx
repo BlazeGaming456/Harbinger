@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { Trash2 } from 'lucide-react';
 import client from '@/lib/client.js';
 import LatencyChart from '@/components/LatencyChart.jsx';
 import ProbeHistory from '@/components/ProbeHistory.jsx';
@@ -11,35 +12,54 @@ import { formatScore, parseScore } from '@/lib/score.js';
 
 export default function EndpointDetailPage() {
     const { id } = useParams();
+    const router = useRouter();
     const [endpoint, setEndpoint] = useState(null);
     const [health, setHealth] = useState(null);
     const [probes, setProbes] = useState([]);
     const [error, setError] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
     const { ready, authenticated } = useAuth();
+
+    const load = useCallback(async () => {
+        try {
+            const [endpointRes, healthRes, probesRes] = await Promise.all([
+                client.get(`/endpoints/${id}`),
+                client.get(`/health/${id}`),
+                client.get(`/endpoints/${id}/probes`),
+            ]);
+            setEndpoint(endpointRes.data);
+            setHealth(healthRes.data);
+            setProbes(probesRes.data);
+            setError(null);
+        } catch {
+            setError('Could not load endpoint data.');
+        }
+    }, [id]);
 
     useEffect(() => {
         if (!ready || !authenticated) return;
-
-        async function load() {
-            try {
-                const [endpointRes, healthRes, probesRes] = await Promise.all([
-                    client.get(`/endpoints/${id}`),
-                    client.get(`/health/${id}`),
-                    client.get(`/endpoints/${id}/probes`),
-                ]);
-                setEndpoint(endpointRes.data);
-                setHealth(healthRes.data);
-                setProbes(probesRes.data);
-                setError(null);
-            } catch {
-                setError('Could not load endpoint data.');
-            }
-        }
-
         load();
         const interval = setInterval(load, 10000);
         return () => clearInterval(interval);
-    }, [id, ready, authenticated]);
+    }, [ready, authenticated, load]);
+
+    async function handleDelete() {
+        if (!confirmDelete) {
+            setConfirmDelete(true);
+            setError(null);
+            return;
+        }
+        setDeleting(true);
+        try {
+            await client.delete(`/endpoints/${id}`);
+            router.push('/endpoints');
+        } catch {
+            setDeleting(false);
+            setConfirmDelete(false);
+            setError('Failed to delete endpoint.');
+        }
+    }
 
     if (!ready) return <div className="loading-state">Restoring session…</div>;
     if (!authenticated) return <div className="empty-state">Session expired. Please log in again.</div>;
@@ -49,19 +69,35 @@ export default function EndpointDetailPage() {
     const hasScore = parseScore(health?.score) != null;
 
     return (
-        <div>
-            <Link href="/endpoints" className="link-accent" style={{ display: 'inline-block', marginBottom: 20 }}>← Back to endpoints</Link>
+        <div className="app-page">
+            <Link href="/endpoints" className="back-link">← Back to endpoints</Link>
 
             <header className="page-header">
-                <div className="page-header-row" style={{ marginBottom: 0 }}>
-                    <div style={{ minWidth: 0 }}>
-                        <h1 className="page-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{endpoint.url}</h1>
-                        <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 8 }}>
+                <div className="page-header-row endpoint-detail-header">
+                    <div className="endpoint-detail-title-wrap">
+                        <h1 className="page-title endpoint-detail-url">{endpoint.url}</h1>
+                        <div className="endpoint-detail-meta">
                             <span className="endpoint-meta">Every {endpoint.interval_seconds}s</span>
-                            <NextProbeCountdown nextProbeAt={endpoint.next_probe_at} />
+                            <NextProbeCountdown nextProbeAt={endpoint.next_probe_at} onExpire={load} />
                         </div>
                     </div>
-                    {health && <span className="badge badge-live">{health.source === 'cache' ? 'cached' : 'live'}</span>}
+                    <div className="endpoint-detail-actions">
+                        {health && <span className="badge badge-live">{health.source === 'cache' ? 'cached' : 'live'}</span>}
+                        {confirmDelete ? (
+                            <div className="delete-confirm-inline">
+                                <button type="button" className="btn btn-danger-solid btn-sm" onClick={handleDelete} disabled={deleting}>
+                                    {deleting ? 'Deleting…' : 'Confirm delete'}
+                                </button>
+                                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+                                    Cancel
+                                </button>
+                            </div>
+                        ) : (
+                            <button type="button" className="btn btn-danger btn-sm" onClick={handleDelete}>
+                                <Trash2 size={14} /> Delete
+                            </button>
+                        )}
+                    </div>
                 </div>
             </header>
 
@@ -72,21 +108,21 @@ export default function EndpointDetailPage() {
             )}
 
             <div className="stat-grid stagger">
-                <div className="card stat-card stat-card-accent">
+                <div className="card stat-card stat-card-accent app-panel-interactive">
                     <p className="stat-label">Score</p>
                     <p className="stat-value accent">{formatScore(health?.score) ?? '—'}</p>
                 </div>
-                <div className="card stat-card stat-card-green">
+                <div className="card stat-card stat-card-green app-panel-interactive">
                     <p className="stat-label">p95 latency</p>
-                    <p className="stat-value">{health?.p95_latency_ms ?? '—'}<span style={{ fontSize: 14, opacity: 0.5 }}> ms</span></p>
+                    <p className="stat-value">{health?.p95_latency_ms ?? '—'}<span className="stat-unit"> ms</span></p>
                 </div>
-                <div className="card stat-card stat-card-amber">
+                <div className="card stat-card stat-card-amber app-panel-interactive">
                     <p className="stat-label">Error rate</p>
                     <p className="stat-value degraded">{hasScore ? `${(Number(health.error_rate ?? 0) * 100).toFixed(0)}%` : '—'}</p>
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gap: 16, marginTop: 8 }}>
+            <div className="detail-grid">
                 <LatencyChart probes={probes} />
                 <ProbeHistory probes={probes} />
             </div>

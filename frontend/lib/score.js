@@ -16,3 +16,8 @@ export function statusClass(score) {
   if (n < 0.7) return 'degraded';
   return 'down';
 }
+
+export function statusLabel(score) {
+  const s = statusClass(score);
+  return { pending: 'Pending', healthy: 'Healthy', degraded: 'Degraded', down: 'Down' }[s];
+}

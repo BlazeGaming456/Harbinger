@@ -8,6 +8,11 @@ const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
 export const metadata = {
   title: "Harbinger",
   description: "Real-time dashboard for your API endpoints!",
+  icons: {
+    icon: "/Logo.ico",
+    shortcut: "/Logo.ico",
+    apple: "/Logo.ico",
+  },
 };
 
 export default function RootLayout({ children }) {

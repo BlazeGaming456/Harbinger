@@ -75,13 +75,25 @@ const scoreWorker = new Worker('score', async (job) => {
     jobLogger.info({ score }, 'Score calculation complete');
 
     if (score > 0.7) {
-        const incident = await pool.query(
-            `INSERT INTO incidents (endpoint_id) VALUES ($1) RETURNING id, alert_id`,
+        const existing = await pool.query(
+            `SELECT id FROM incidents WHERE endpoint_id = $1 AND resolved_at IS NULL LIMIT 1`,
             [endpointId]
         );
-        incidentOpened.inc(); //Increment the Prometheus metric
-        await alertQueue.add('alert', { incidentId: incident.rows[0].id, alertId: incident.rows[0].alert_id, endpointId, traceId });
-        jobLogger.info('Alert job created');
+
+        if (!existing.rows[0]) {
+            const incident = await pool.query(
+                `INSERT INTO incidents (endpoint_id) VALUES ($1) RETURNING id, alert_id`,
+                [endpointId]
+            );
+            incidentOpened.inc();
+            await alertQueue.add('alert', {
+                incidentId: incident.rows[0].id,
+                alertId: incident.rows[0].alert_id,
+                endpointId,
+                traceId,
+            });
+            jobLogger.info('Alert job created');
+        }
     }
 }, { connection });
 

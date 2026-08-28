@@ -30,7 +30,7 @@ export async function authRoutes(app) {
 
     try {
       const result = await pool.query(
-        `INSERT INTO users (email, password_hash) VALUES ($1, $2) returning id, email`,
+        `INSERT INTO users (email, password_hash, alert_channel, alert_target) VALUES ($1, $2, 'email', $1) RETURNING id, email`,
         [email, hash],
       );
 

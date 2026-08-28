@@ -1,10 +1,10 @@
 import MarketingLayout from './(marketing)/layout.jsx';
-import HomePage from './(marketing)/page.jsx';
+import HomeContent from '@/components/marketing/HomeContent.jsx';
 
 export default function Home() {
-  return (
-    <MarketingLayout>
-      <HomePage />
-    </MarketingLayout>
-  );
+    return (
+        <MarketingLayout>
+            <HomeContent />
+        </MarketingLayout>
+    );
 }

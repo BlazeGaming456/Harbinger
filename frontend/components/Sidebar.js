@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, Radio, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext.jsx';
+import Logo from '@/components/Logo.jsx';
 
 const NAV = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -23,28 +24,29 @@ export default function Sidebar() {
   return (
     <>
       <aside className="sidebar">
-        <Link href="/dashboard" className="sidebar-brand">
-          <span className="sidebar-logo">H</span>
-          Harbinger
-        </Link>
+        <div className="sidebar-top">
+          <Link href="/dashboard" className="sidebar-brand">
+            <Logo size={26} textClassName="sidebar-brand-text" interactive />
+          </Link>
 
-        <nav className="sidebar-nav">
-          {NAV.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`sidebar-link${pathname.startsWith(href) ? ' active' : ''}`}
-            >
-              <Icon size={16} strokeWidth={1.5} />
-              {label}
-            </Link>
-          ))}
-        </nav>
+          <nav className="sidebar-nav" aria-label="Main">
+            {NAV.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className={`sidebar-item${pathname.startsWith(href) ? ' active' : ''}`}
+              >
+                <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
+                <span>{label}</span>
+              </Link>
+            ))}
+          </nav>
+        </div>
 
-        <div className="sidebar-footer">
-          <button type="button" onClick={handleLogout} className="sidebar-link" style={{ width: '100%', border: 0, background: 'none', cursor: 'pointer' }}>
-            <LogOut size={16} strokeWidth={1.5} />
-            Log out
+        <div className="sidebar-bottom">
+          <button type="button" onClick={handleLogout} className="sidebar-item sidebar-item-logout">
+            <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
+            <span>Log out</span>
           </button>
         </div>
       </aside>
@@ -56,7 +58,7 @@ export default function Sidebar() {
             href={href}
             className={`mobile-nav-link${pathname.startsWith(href) ? ' active' : ''}`}
           >
-            <Icon size={20} strokeWidth={1.5} />
+            <Icon size={18} strokeWidth={1.75} />
             {label}
           </Link>
         ))}

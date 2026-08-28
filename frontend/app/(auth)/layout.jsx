@@ -1,15 +1,16 @@
 import Link from 'next/link';
+import Logo from '@/components/Logo.jsx';
 
 export default function AuthLayout({ children }) {
     return (
-        <main className="auth-shell">
-            <div className="auth-noise" aria-hidden="true" />
-            <Link href="/" className="auth-brand">
-                <span className="brand-symbol">H</span>
-                Harbinger
-            </Link>
-            <div className="auth-content">{children}</div>
-            <p className="auth-footer">Precision monitoring for modern systems</p>
-        </main>
+        <div className="auth-shell-wrap">
+            <main className="auth-shell">
+                <div className="auth-noise" aria-hidden="true" />
+                <Link href="/" className="auth-brand">
+                    <Logo size={30} interactive />
+                </Link>
+                <div className="auth-content">{children}</div>
+            </main>
+        </div>
     );
 }

@@ -1,29 +1,49 @@
+import { formatProbeStatus, formatProbeTime } from '@/lib/probe.js';
+
 export default function ProbeHistory({ probes }) {
-  const recent = [...probes].reverse().slice(0, 10);
+    const recent = [...probes].reverse().slice(0, 10);
 
-  if (!recent.length) {
+    if (!recent.length) {
+        return (
+            <div className="card chart-wrap probe-table-wrap">
+                <p className="card-heading">Recent probes</p>
+                <p className="chart-empty">No probes recorded yet.</p>
+            </div>
+        );
+    }
+
     return (
-      <div className="card chart-wrap">
-        <p className="stat-label">Recent probes</p>
-        <p className="chart-empty">No probes recorded yet.</p>
-      </div>
+        <div className="card chart-wrap probe-table-wrap">
+            <p className="card-heading">Recent probes</p>
+            <div className="probe-table-scroll">
+                <table className="probe-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Status</th>
+                            <th>Latency</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {recent.map((p) => {
+                            const status = formatProbeStatus(p);
+                            return (
+                                <tr key={p.id}>
+                                    <td className="probe-time">{formatProbeTime(p.probed_at)}</td>
+                                    <td>
+                                        <span className={`probe-status probe-status-${status.tone}`}>
+                                            {status.label}
+                                        </span>
+                                    </td>
+                                    <td className="probe-latency">
+                                        {p.response_time_ms != null ? `${p.response_time_ms} ms` : '—'}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     );
-  }
-
-  return (
-    <div className="card chart-wrap">
-      <p className="stat-label">Recent probes</p>
-      <div style={{ marginTop: 12 }}>
-        {recent.map((p) => (
-          <div key={p.id} className="probe-row">
-            <span style={{ color: 'var(--muted)' }}>{new Date(p.probed_at).toLocaleTimeString()}</span>
-            <span style={{ color: p.status_code >= 400 || !p.status_code ? 'var(--down)' : 'var(--healthy)' }}>
-              {p.status_code ?? p.error_type ?? 'timeout'}
-            </span>
-            <span style={{ color: 'var(--cyan)' }}>{p.response_time_ms}ms</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
