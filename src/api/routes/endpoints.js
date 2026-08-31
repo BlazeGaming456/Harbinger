@@ -42,12 +42,27 @@ export async function endpointRoutes(app) {
     });
 
     app.delete('/endpoints/:id', { preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {
-        const result = await pool.query(`DELETE FROM endpoints WHERE id = $1 and user_id = $2 RETURNING id`,
-            [req.params.id, req.userId]
-        );
-        if (!result.rows[0]) return reply.code(404).send({ error: 'Not found' });
-
-        return reply.code(204).send();
+        const dbClient = await pool.connect();
+        try {
+            await dbClient.query('BEGIN');
+            // Manually clean up dependencies in case ON DELETE CASCADE is missing
+            await dbClient.query('DELETE FROM probe_results WHERE endpoint_id = $1', [req.params.id]);
+            await dbClient.query('DELETE FROM endpoint_scores WHERE endpoint_id = $1', [req.params.id]);
+            await dbClient.query('DELETE FROM incidents WHERE endpoint_id = $1', [req.params.id]);
+            
+            const result = await dbClient.query(`DELETE FROM endpoints WHERE id = $1 and user_id = $2 RETURNING id`,
+                [req.params.id, req.userId]
+            );
+            await dbClient.query('COMMIT');
+            
+            if (!result.rows[0]) return reply.code(404).send({ error: 'Not found' });
+            return reply.code(204).send();
+        } catch (error) {
+            await dbClient.query('ROLLBACK');
+            throw error;
+        } finally {
+            dbClient.release();
+        }
     });
 
     app.get('/endpoints', { preHandler: [requireAuth, rateLimit('endpoint')] }, async(req, reply) => {

@@ -10,6 +10,7 @@ import { userRoutes } from './routes/users.js';
 import client from 'prom-client';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import websocket from '@fastify/websocket';
 
 const app = Fastify({
     logger: true,
@@ -25,6 +26,9 @@ await app.register(swagger, {
 
 await app.register(swaggerUi, { routePrefix: '/docs' });
 
+await app.register(websocket);
+
+const connections = new Map(); //userId -> Set of actve socket connections
 
 // ---------------
 //Metrics
