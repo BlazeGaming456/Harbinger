@@ -34,6 +34,39 @@ function computeScore({ p95_latency, error_rate, timeout_rate, baseline_p95 }) {
     return Math.min(score, 1);
 }
 
+function percentile(values, p) {
+    if (values.length === 0) return 0;
+
+    const sorted = [...values].sort((a, b) => a-b);
+    const index = Math.ceil(p * sorted.length) - 1;
+
+    return sorted[Math.max(0, index)];
+}
+
+function aggregateWindow(probes) {
+    if (probes.length === 0) {
+        return {
+            p95_latency: 0,
+            error_rate: 0,
+            timeout_rate: 0,
+        };
+    }
+
+    const latencies = probes.map(p => p.response_time_ms).filter(Boolean);
+
+    const p95 = percentile(latencies, 0.95);
+
+    const errorRate = probes.filter(p => p.status_code >= 400 || !p.status_code).length / probes.length;
+
+    const timeoutRate = probes.filter(p => p.is_timeout).length / probes.length;
+
+    return {
+        p95_latency: p95,
+        error_rate: errorRate,
+        timeout_rate: timeoutRate,
+    };
+}
+
 const scoreWorker = new Worker('score', async (job) => {
     const { endpointId, traceId } = job.data;
 
@@ -45,36 +78,73 @@ const scoreWorker = new Worker('score', async (job) => {
 
     jobLogger.info('Starting score calculation');
     const { rows } = await pool.query(
-        `SELECT
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95_latency,
-            COUNT(*) FILTER (WHERE status_code >= 400 or status_code IS NULL)*1.0/COUNT(*) AS error_rate,
-            COUNT(*) FILTER (WHERE is_timeout = true)*1.0/COUNT(*) AS timeout_rate
-        FROM (
-            SELECT * FROM probe_results
-            WHERE endpoint_id = $1
-            ORDER BY probed_at DESC
-            LIMIT 20
-        ) recent`,
+        `SELECT *
+        FROM probe_results
+        WHERE endpoint_id = $1
+        ORDER BY probed_at DESC
+        LIMIT 40`,
          [endpointId]
     );
 
-    const { p95_latency, error_rate, timeout_rate } = rows[0];
+    if (rows.length < 40) {
+        jobLogger.info({ probeCount: rows.length },
+            'Not enough probes for trend calculation'
+        );
 
-    const score = computeScore({ p95_latency: Number(p95_latency), error_rate: Number(error_rate), timeout_rate: Number(timeout_rate), baseline_p95: 500 });
+        return;
+    }
+
+    const recentProbes = rows.slice(0,20);
+    const priorProbes = rows.slice(20,40);
+
+    const recentAgg = aggregateWindow(recentProbes);
+    const priorAgg = aggregateWindow(priorProbes);
+
+    const recentScore = computeScore({ ...recentAgg, baseline_p95: 500, });
+    const priorScore = computeScore({ ...priorAgg, baseline_p95: 500, });
+
+    const trend = recentScore - priorScore;
+
+    const TREND_THRESHOLD = 0.15;
+
+    const isWorsening = trend > TREND_THRESHOLD;
+    const isAlreadyIncident = recentScore > 0.7;
+
+    const endpointResult = await pool.query(
+        `SELECT user_id FROM endpoints WHERE id = $1`,
+        [endpointId]
+    );
+
+    if (!endpointResult.rows[0]) {
+        throw new Error(`Endpoint ${endpointId} not found`);
+    }
+
+    const userId = endpointResult.rows[0].user_id;
 
     await pool.query(
         `INSERT INTO endpoint_scores (endpoint_id, score, p95_latency_ms, error_rate, timeout_rate, computed_at)
-        VALUES ($1, $2, $3, $4, $5, now())
+        VALUES ($1, $2, $3, $4, $5, $6, now())
         ON CONFLICT (endpoint_id) DO UPDATE
         SET score = $2, p95_latency_ms = $3, error_rate = $4, timeout_rate = $5, computed_at = now()`,
-        [endpointId, score, p95_latency, error_rate, timeout_rate]
+        [endpointId, recentScore, recentAgg.p95_latency, recentAgg.error_rate, recentAgg.timeout_rate, trend]
     );
 
-    await redis.set(`health:${endpointId}`, JSON.stringify({ score, computed_at: new Date() }), 'EX', 120);
+    await redis.set(`health:${endpointId}`, JSON.stringify({ score: recentScore, trend, computed_at: new Date() }), 'EX', 120);
 
-    jobLogger.info({ score }, 'Score calculation complete');
+    //Publish to Websocket
+    await redis.publish('score-updates', JSON.stringify({
+        userId,
+        endpointId,
+        score: recentScore,
+        p95_latency_ms: recentAgg.p95_latency,
+        error_rate: recentAgg.error_rate,
+        timeout_rate: recentAgg.timeout_rate,
+        trend
+    }));
 
-    if (score > 0.7) {
+    jobLogger.info({ recentScore, priorScore, trend }, 'Score calculation complete');
+
+    if (recentScore > 0.7) {
         const existing = await pool.query(
             `SELECT id FROM incidents WHERE endpoint_id = $1 AND resolved_at IS NULL LIMIT 1`,
             [endpointId]
@@ -94,6 +164,25 @@ const scoreWorker = new Worker('score', async (job) => {
             });
             jobLogger.info('Alert job created');
         }
+    }
+
+    if (isWorsening && !isAlreadyIncident) {
+        await pool.query(
+            `INSERT INTO incidents (endpoint_id, incident_type)
+            VALUES ($1, 'early_warning')
+            ON CONFLICT DO NOTHING`,
+            [endpointId]
+        );
+        
+        await alertQueue.add('alert', { endpointId, incidentType: 'early_warning', recentScore, priorScore, trend });
+    }
+
+    if (!isWorsening) {
+        await pool.query(
+            `UPDATE incidents SET resolved_at = now()
+            WHERE endpoint_id = $1 AND incident_type = 'early_warning' AND resolved_at IS NULL`,
+            [endpointId]
+        );
     }
 }, { connection });
 

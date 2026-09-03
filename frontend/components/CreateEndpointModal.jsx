@@ -7,6 +7,7 @@ import client from '@/lib/client.js';
 export default function CreateEndpointModal({ open, onClose, onCreated }) {
     const [url, setUrl] = useState('');
     const [interval, setInterval_] = useState(60);
+    const [name, setName] = useState('');
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
 
@@ -15,7 +16,7 @@ export default function CreateEndpointModal({ open, onClose, onCreated }) {
         setError(null);
         setLoading(true);
         try {
-            await client.post('/endpoints', { url, interval_seconds: Number(interval) });
+            await client.post('/endpoints', { url, name: name || undefined, interval_seconds: Number(interval) });
             setUrl('');
             setInterval_(60);
             onCreated();
@@ -62,6 +63,15 @@ export default function CreateEndpointModal({ open, onClose, onCreated }) {
                             </button>
                         </div>
                         <form onSubmit={handleSubmit} className="modal-form">
+                            <label className="label">
+                                Name
+                                <input
+                                    className="input"
+                                    placeholder="Name (optional, e.g. Payments API)"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                />
+                            </label>
                             <label className="label">
                                 URL
                                 <input

@@ -22,8 +22,8 @@ export default function DeleteEndpointButton({ id, onDeleted, label = 'Delete' }
         try {
             await client.delete(`/endpoints/${id}`);
             onDeleted?.();
-        } catch {
-            setError('Could not delete.');
+        } catch (err) {
+            setError(err.response?.data?.error || err.message || 'Could not delete.');
             setConfirming(false);
         } finally {
             setLoading(false);

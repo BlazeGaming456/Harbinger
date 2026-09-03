@@ -15,59 +15,46 @@ const createEndpointSchema = {
         required: ['url'],
         properties: {
             url: { type: 'string', format: 'url' },
+            name: { type: 'string', maxLength: 100 },
             interval_seconds: { type: 'integer', minimum: 10, maximum: 86400 },
         },
     },
 };
 
 export async function endpointRoutes(app) {
-    app.post('/endpoints', { schema: createEndpointSchema, preHandler: [requireAuth, rateLimit('endpoint')] }, async(req,reply) => {
-        const { url, interval_seconds } = req.body;
+    app.post('/endpoints', { schema: createEndpointSchema, preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {
+        const { url, name, interval_seconds } = req.body;
         const result = await pool.query(
-            `INSERT INTO endpoints (user_id, url, interval_seconds, next_probe_at) VALUES ($1, $2, $3, now()) RETURNING *`,
-            [req.userId, url, interval_seconds || 60]
+            `INSERT INTO endpoints (user_id, url, name, interval_seconds, next_probe_at) VALUES ($1, $2, $3, $4, now()) RETURNING *`,
+            [req.userId, url, name || null, interval_seconds || 60]
         );
 
         return reply.code(201).send(result.rows[0]);
     });
 
     app.patch('/endpoints/:id', { preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {
-        const { url, interval_seconds, is_active } = req.body;
+        const { url, name, interval_seconds, is_active } = req.body;
         const result = await pool.query(
-            `UPDATE endpoints SET url = COALESCE($1, url), interval_seconds = COALESCE($2, interval_seconds), is_active = COALESCE($3, is_active) where id = $4 and user_id = $5 RETURNING *`,
-            [url, interval_seconds, is_active, req.params.id, req.userId]
+            `UPDATE endpoints SET url = COALESCE($1, url), name = COALESCE($2, name), interval_seconds = COALESCE($3, interval_seconds), is_active = COALESCE($4, is_active) where id = $5 and user_id = $6 RETURNING *`,
+            [url, name, interval_seconds, is_active, req.params.id, req.userId]
         );
-        if (!result.rows[0]) return reply.code(404).send({ error: 'Not found'});
+        if (!result.rows[0]) return reply.code(404).send({ error: 'Not found' });
         return result.rows[0];
     });
 
     app.delete('/endpoints/:id', { preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {
-        const dbClient = await pool.connect();
-        try {
-            await dbClient.query('BEGIN');
-            // Manually clean up dependencies in case ON DELETE CASCADE is missing
-            await dbClient.query('DELETE FROM probe_results WHERE endpoint_id = $1', [req.params.id]);
-            await dbClient.query('DELETE FROM endpoint_scores WHERE endpoint_id = $1', [req.params.id]);
-            await dbClient.query('DELETE FROM incidents WHERE endpoint_id = $1', [req.params.id]);
-            
-            const result = await dbClient.query(`DELETE FROM endpoints WHERE id = $1 and user_id = $2 RETURNING id`,
-                [req.params.id, req.userId]
-            );
-            await dbClient.query('COMMIT');
-            
-            if (!result.rows[0]) return reply.code(404).send({ error: 'Not found' });
-            return reply.code(204).send();
-        } catch (error) {
-            await dbClient.query('ROLLBACK');
-            throw error;
-        } finally {
-            dbClient.release();
-        }
+        const result = await pool.query(
+            `DELETE FROM endpoints WHERE id = $1 and user_id = $2 RETURNING id`,
+            [req.params.id, req.userId]
+        );
+
+        if (!result.rows[0]) return reply.code(404).send({ error: 'Not found' });
+        return reply.code(204).send();
     });
 
-    app.get('/endpoints', { preHandler: [requireAuth, rateLimit('endpoint')] }, async(req, reply) => {
+    app.get('/endpoints', { preHandler: [requireAuth, rateLimit('endpoint')] }, async (req, reply) => {
         const { cursor, limit = 20 } = req.query;
-        const capped = Math.min(Number(limit), 50) ;
+        const capped = Math.min(Number(limit), 50);
 
         let result;
         if (cursor) {
@@ -99,7 +86,7 @@ export async function endpointRoutes(app) {
         return { data: rows, nextCursor };
     });
 
-    app.get('/endpoints/:id/probes', { preHandler: requireAuth }, async(req, reply) => {
+    app.get('/endpoints/:id/probes', { preHandler: requireAuth }, async (req, reply) => {
         const result = await pool.query(
             `SELECT pr .* FROM probe_results pr
             JOIN endpoints e ON e.id = pr.endpoint_id

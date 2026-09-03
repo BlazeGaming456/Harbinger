@@ -1,7 +1,8 @@
 'use client';
 
+import { useRef } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion';
 import { Activity, BarChart3, Bell, Shield, ArrowRight } from 'lucide-react';
 import { LogoMark } from '@/components/Logo.jsx';
 
@@ -19,19 +20,43 @@ const STEPS = [
 ];
 
 const fade = {
-    hidden: { opacity: 0, y: 24 },
-    show: (i = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.55, delay: i * 0.08 } }),
+    hidden: { opacity: 0, y: 30, scale: 0.95 },
+    show: (i = 0) => ({ opacity: 1, y: 0, scale: 1, transition: { type: 'spring', damping: 25, stiffness: 120, delay: i * 0.08 } }),
 };
 
 export default function HomeContent() {
+    const heroRef = useRef(null);
+    const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
+    
+    const y1 = useTransform(scrollYProgress, [0, 1], [0, 250]);
+    const y2 = useTransform(scrollYProgress, [0, 1], [0, -180]);
+    const glowOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
+    const smoothX = useSpring(mouseX, { damping: 20, stiffness: 100 });
+    const smoothY = useSpring(mouseY, { damping: 20, stiffness: 100 });
+
+    const handleMouseMove = (e) => {
+        if (typeof window !== 'undefined') {
+            mouseX.set((e.clientX / window.innerWidth) - 0.5);
+            mouseY.set((e.clientY / window.innerHeight) - 0.5);
+        }
+    };
+
+    const orb1X = useTransform(smoothX, [-0.5, 0.5], [-120, 120]);
+    const orb2X = useTransform(smoothX, [-0.5, 0.5], [150, -150]);
+    const rotateX = useTransform(smoothY, [-0.5, 0.5], [15, -15]);
+    const rotateY = useTransform(smoothX, [-0.5, 0.5], [-15, 15]);
+
     return (
         <>
-            <section className="hero">
+            <section className="hero" ref={heroRef} onMouseMove={handleMouseMove}>
                 <div className="hero-grid" aria-hidden="true" />
-                <div className="hero-glow" aria-hidden="true" />
+                <motion.div className="hero-glow" style={{ opacity: glowOpacity }} aria-hidden="true" />
                 <div className="hero-orbs" aria-hidden="true">
-                    <span className="orb orb-cyan" />
-                    <span className="orb orb-violet" />
+                    <motion.span className="orb orb-cyan" style={{ y: y1, x: orb1X }} />
+                    <motion.span className="orb orb-violet" style={{ y: y2, x: orb2X }} />
                 </div>
 
                 <motion.div className="hero-inner" initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.1 } } }}>
@@ -60,10 +85,14 @@ export default function HomeContent() {
 
                 <motion.div
                     className="hero-preview"
-                    initial={{ opacity: 0, y: 32, scale: 0.97 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.7, delay: 0.25 }}
-                    whileHover={{ y: -4 }}
+                    initial={{ opacity: 0, y: 40, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1, transition: { type: 'spring', damping: 20, stiffness: 100, delay: 0.35 } }}
+                    whileHover={{ 
+                        scale: 1.02, 
+                        boxShadow: '0 32px 90px rgba(34, 211, 238, 0.15)',
+                        transition: { duration: 0.4, ease: "easeOut" }
+                    }}
+                    style={{ rotateX, rotateY, transformStyle: "preserve-3d", transformPerspective: 1000 }}
                 >
                     <div className="preview-bar">
                         <span>harbinger / overview</span>
@@ -149,7 +178,7 @@ export default function HomeContent() {
                             >
                                 <div className="step-card-top">
                                     <span className="step-card-num">{num}</span>
-                                    {i < STEPS.length - 1 && <span className="step-connector" aria-hidden="true" />}
+                                    <span className="step-connector" aria-hidden="true" />
                                 </div>
                                 <h3>{title}</h3>
                                 <p>{desc}</p>

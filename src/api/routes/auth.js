@@ -3,6 +3,9 @@ import pool from "../../db/pool.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { rateLimit } from '../middleware/rateLimit.js';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 //Input validation
 const signupSchema = {
@@ -11,7 +14,7 @@ const signupSchema = {
     required: ['email', 'password'],
     properties: {
       email: { type: 'string', format: 'email' },
-      password: {type: 'string', minLength: 8 },
+      password: { type: 'string', minLength: 8 },
     },
   },
 };
@@ -83,7 +86,7 @@ export async function authRoutes(app) {
   app.post('/auth/forgot-password', async (request, reply) => {
     const email = normalizeEmail(request.body.email || '');
     const result = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    const response = { message: 'If an account exists, a reset link has been created.' };
+    const response = { message: 'If an account exists, a reset link has been sent to your email.' };
 
     if (result.rows[0]) {
       const token = crypto.randomBytes(32).toString('hex');
@@ -93,7 +96,19 @@ export async function authRoutes(app) {
          VALUES ($1, $2, now() + INTERVAL '1 hour')`,
         [result.rows[0].id, hashToken(token)],
       );
-      response.resetToken = token;
+
+      const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}`;
+
+      try {
+        await resend.emails.send({
+          from: process.env.ALERT_FROM_EMAIL || 'onboarding@resend.dev',
+          to: email,
+          subject: `Reset your Harbinger password`,
+          text: `You requested a password reset. Click the link below to reset your password:\n\n${resetLink}\n\nIf you did not request this, you can safely ignore this email.`,
+        });
+      } catch (err) {
+        request.log.error(err, 'Failed to send reset email');
+      }
     }
 
     return reply.send(response);

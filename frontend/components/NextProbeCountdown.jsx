@@ -8,6 +8,7 @@ export default function NextProbeCountdown({ nextProbeAt, onExpire }) {
 
     useEffect(() => {
         firedRef.current = false;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setProbing(false);
 
         if (!nextProbeAt) return;

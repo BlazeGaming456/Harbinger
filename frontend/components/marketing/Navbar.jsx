@@ -22,7 +22,7 @@ export default function MarketingNavbar() {
         <header className={`site-nav${scrolled ? ' scrolled' : ''}`}>
             <div className="site-nav-inner">
                 <Link href="/" className="site-nav-brand">
-                    <Logo size={34} interactive />
+                    <Logo size={42} interactive />
                 </Link>
 
                 <button

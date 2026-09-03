@@ -19,6 +19,7 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
     >
       <body className={`${inter.variable} ${mono.variable}`}>
         <AuthProvider>{children}</AuthProvider>

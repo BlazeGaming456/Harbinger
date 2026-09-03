@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-export function middleware(request) {
+export function proxy(request) {
     const refreshToken = request.cookies.get('refreshToken');
     const path = request.nextUrl.pathname;
     const isAuthPage = path === '/login' || path === '/signup' || path === '/forgot-password' || path === '/reset-password';

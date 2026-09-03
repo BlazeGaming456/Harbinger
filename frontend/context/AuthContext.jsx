@@ -11,14 +11,19 @@ export function AuthProvider({ children }) {
 
     useEffect(() => {
         refreshAccessToken()
-            .then(() => {
-                setUser({});
+            .then(async () => {
+                try {
+                    const { data } = await client.get('/users/me');
+                    setUser(data);
+                } catch {
+                    setUser({});
+                }
                 setAuthenticated(true);
             })
             .catch(async () => {
                 setAccessToken(null);
                 setAuthenticated(false);
-                try { await client.post('/auth/logout'); } catch {}
+                try { await client.post('/auth/logout'); } catch { }
             })
             .finally(() => setReady(true));
 

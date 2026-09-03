@@ -21,6 +21,9 @@ export async function refreshAccessToken() {
       return data.accessToken;
     })
     .catch((err) => {
+      if (err.response?.status !== 401) {
+        console.error('Refresh token failed:', err);
+      }
       setAccessToken(null);
       throw err;
     })

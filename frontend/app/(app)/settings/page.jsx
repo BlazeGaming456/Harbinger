@@ -5,6 +5,19 @@ import { AnimatePresence, motion } from 'framer-motion';
 import client, { setAccessToken } from '@/lib/client';
 import { useAuth } from '@/context/AuthContext';
 
+const fade = {
+  hidden: { opacity: 0, y: 15 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 120 } },
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.05 }
+  }
+};
+
 export default function SettingsPage() {
   const [confirming, setConfirming] = useState(false);
   const [confirmText, setConfirmText] = useState('');
@@ -29,18 +42,18 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="app-page settings-page">
-      <header className="page-header">
+    <motion.div className="app-page settings-page" initial="hidden" animate="show" variants={staggerContainer}>
+      <motion.header className="page-header" variants={fade}>
         <h1 className="page-title">Settings</h1>
         <p className="page-desc">Manage your account.</p>
-      </header>
+      </motion.header>
 
-      <div className="card app-panel settings-card">
+      <motion.div className="card app-panel settings-card" variants={fade}>
         <p className="stat-label">Account email</p>
         <p className="settings-email">{user?.email ?? '—'}</p>
-      </div>
+      </motion.div>
 
-      <div className="card danger-zone app-panel settings-danger">
+      <motion.div className="card danger-zone app-panel settings-danger" variants={fade}>
         <h2 className="danger-title">Delete account</h2>
         <p className="page-desc settings-danger-desc">
           Permanently deletes your account, all endpoints, probe history, and incidents. This cannot be undone.
@@ -94,7 +107,7 @@ export default function SettingsPage() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -17,19 +17,21 @@ const connection = {
 };
 
 const alertWorker = new Worker('alert', async (job) => {
-    const { incidentId, alertId, endpointId, traceId } = job.data;
+    const { incidentId, alertId, endpointId, traceId, incidentType, recentScore, priorScore, trend } = job.data;
 
-    const jobLogger = logger.child({ jobId: job.id, incidentId, alertId, endpointId, traceId });
+    const jobLogger = logger.child({ jobId: job.id, incidentId, alertId, endpointId, traceId, incidentType });
     jobLogger.info('Starting alert delivery');
 
     const check = await pool.query(
-        `SELECT alert_sent FROM incidents WHERE id = $1`,
+        `SELECT alert_sent, incident_type FROM incidents WHERE id = $1`,
         [incidentId]
     );
 
     if (!check.rows[0]) {
         throw new Error(`Incident ${incidentId} not found`);
     }
+
+    const dbIncidentType = check.rows[0].incident_type;
 
     if (check.rows[0].alert_sent) {
         jobLogger.info('Alert already sent, skipping');
@@ -62,12 +64,18 @@ const alertWorker = new Worker('alert', async (job) => {
         throw new Error(`No alert target configured for user ${email}`);
     }
 
+    const message = dbIncidentType === 'early_warning' ? `Endpoint ${endpoint_url} is trending towards degredation (score moved from ${priorScore.toFixed(2)} to ${recentScore.toFixed(2)}). Check your Harbinger dashboard for details` : `Endpoint ${endpoint_url} is degraded (health score exceeded threshold). Check your harbinger dashboard for details`;
+
     const payload = {
         alert_id: alertId,
         incident_id: incidentId,
         endpoint_id: endpointId,
         endpoint_url,
-        message: `Endpoint ${endpoint_url} is degraded (health score exceeded threshold). Check your Harbinger dashboard for details.`,
+        incident_type: dbIncidentType,
+        recent_score: recentScore,
+        prior_score: priorScore,
+        trend,
+        message,
         timestamp: new Date().toISOString(),
     };
 
