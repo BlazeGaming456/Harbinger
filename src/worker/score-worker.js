@@ -143,7 +143,10 @@ const scoreWorker = new Worker('score', async (job) => {
 
     if (recentScore > 0.7) {
         const existing = await pool.query(
-            `SELECT id FROM incidents WHERE endpoint_id = $1 AND resolved_at IS NULL LIMIT 1`,
+            `SELECT id, alert_id, opened_at, reminder_sent
+             FROM incidents
+             WHERE endpoint_id = $1 AND incident_type = 'degradation' AND resolved_at IS NULL
+             LIMIT 1`,
             [endpointId]
         );
 
@@ -160,6 +163,21 @@ const scoreWorker = new Worker('score', async (job) => {
                 traceId,
             });
             jobLogger.info('Alert job created');
+        } else if (
+            !existing.rows[0].reminder_sent
+            && Date.now() - new Date(existing.rows[0].opened_at).getTime() >= 24 * 60 * 60 * 1000
+        ) {
+            await alertQueue.add('alert', {
+                incidentId: existing.rows[0].id,
+                alertId: existing.rows[0].alert_id,
+                endpointId,
+                traceId,
+                alertKind: 'degradation_reminder',
+                recentScore,
+                priorScore,
+                trend,
+            });
+            jobLogger.info('24-hour degradation reminder job created');
         }
     } else {
         // Endpoint recovered below incident threshold - resolve active incidents

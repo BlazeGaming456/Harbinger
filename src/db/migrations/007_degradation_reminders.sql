@@ -1,0 +1,2 @@
+ALTER TABLE incidents
+ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN NOT NULL DEFAULT false;

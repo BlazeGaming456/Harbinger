@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Logo from '@/components/Logo.jsx';
+import AuthTransition from '@/components/AuthTransition.jsx';
 
 export default function AuthLayout({ children }) {
     return (
@@ -9,7 +10,7 @@ export default function AuthLayout({ children }) {
                 <Link href="/" className="auth-brand">
                     <Logo size={30} interactive />
                 </Link>
-                <div className="auth-content">{children}</div>
+                <div className="auth-content"><AuthTransition>{children}</AuthTransition></div>
             </main>
         </div>
     );

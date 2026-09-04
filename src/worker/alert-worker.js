@@ -17,13 +17,13 @@ const connection = {
 };
 
 const alertWorker = new Worker('alert', async (job) => {
-    const { incidentId, alertId, endpointId, traceId, incidentType, recentScore, priorScore, trend } = job.data;
+    const { incidentId, alertId, endpointId, traceId, incidentType, alertKind, recentScore, priorScore, trend } = job.data;
 
     const jobLogger = logger.child({ jobId: job.id, incidentId, alertId, endpointId, traceId, incidentType });
     jobLogger.info('Starting alert delivery');
 
     const check = await pool.query(
-        `SELECT alert_sent, incident_type FROM incidents WHERE id = $1`,
+        `SELECT alert_sent, reminder_sent, incident_type, resolved_at FROM incidents WHERE id = $1`,
         [incidentId]
     );
 
@@ -31,9 +31,20 @@ const alertWorker = new Worker('alert', async (job) => {
         throw new Error(`Incident ${incidentId} not found`);
     }
 
-    const dbIncidentType = check.rows[0].incident_type;
+    const incident = check.rows[0];
+    const dbIncidentType = incident.incident_type;
 
-    if (check.rows[0].alert_sent) {
+    if (incident.resolved_at) {
+        jobLogger.info('Incident has recovered, skipping alert');
+        return;
+    }
+
+    if (alertKind === 'degradation_reminder' && incident.reminder_sent) {
+        jobLogger.info('Degradation reminder already sent, skipping');
+        return;
+    }
+
+    if (alertKind !== 'degradation_reminder' && incident.alert_sent) {
         jobLogger.info('Alert already sent, skipping');
         return;
     }
@@ -58,7 +69,9 @@ const alertWorker = new Worker('alert', async (job) => {
     const safePrior = typeof priorScore === 'number' ? priorScore.toFixed(2) : '0.00';
     const safeRecent = typeof recentScore === 'number' ? recentScore.toFixed(2) : '0.00';
 
-    const message = dbIncidentType === 'early_warning'
+    const message = alertKind === 'degradation_reminder'
+        ? `Endpoint ${endpoint_url} has remained degraded for 24 hours (current health score: ${safeRecent}). Check your Harbinger dashboard for details.`
+        : dbIncidentType === 'early_warning'
         ? `Endpoint ${endpoint_url} is trending towards degradation (score moved from ${safePrior} to ${safeRecent}). Check your Harbinger dashboard for details.`
         : `Endpoint ${endpoint_url} is degraded (health score exceeded threshold). Check your Harbinger dashboard for details.`;
 
@@ -68,6 +81,7 @@ const alertWorker = new Worker('alert', async (job) => {
         endpoint_id: endpointId,
         endpoint_url,
         incident_type: dbIncidentType,
+        alert_kind: alertKind || dbIncidentType,
         recent_score: recentScore ?? 0,
         prior_score: priorScore ?? 0,
         trend,
@@ -101,7 +115,10 @@ const alertWorker = new Worker('alert', async (job) => {
         }
     }
 
-    await pool.query(`UPDATE incidents SET alert_sent = true WHERE id = $1`, [incidentId]);
+    if (deliveredCount > 0) {
+        const column = alertKind === 'degradation_reminder' ? 'reminder_sent' : 'alert_sent';
+        await pool.query(`UPDATE incidents SET ${column} = true WHERE id = $1`, [incidentId]);
+    }
     jobLogger.info({ activeChannels, deliveredCount }, 'Alert delivery completed');
 }, { connection });
 

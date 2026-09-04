@@ -18,6 +18,7 @@ export default function CreateEndpointModal({ open, onClose, onCreated }) {
         try {
             await client.post('/endpoints', { url, name: name || undefined, interval_seconds: Number(interval) });
             setUrl('');
+            setName('');
             setInterval_(60);
             onCreated();
             onClose();
@@ -30,6 +31,9 @@ export default function CreateEndpointModal({ open, onClose, onCreated }) {
 
     function handleClose() {
         if (loading) return;
+        setUrl('');
+        setName('');
+        setInterval_(60);
         setError(null);
         onClose();
     }

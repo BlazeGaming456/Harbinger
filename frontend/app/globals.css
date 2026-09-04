@@ -1327,10 +1327,11 @@ body {
 .auth-shell {
   align-items: center;
   background: var(--bg);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 100vh;
+  min-height: 100svh;
   overflow: hidden;
   padding: 80px 20px 48px;
   position: relative;
@@ -2251,7 +2252,7 @@ body {
 
 .settings-page {
   max-width: 680px;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .settings-card,
