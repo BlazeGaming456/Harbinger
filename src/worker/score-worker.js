@@ -74,7 +74,7 @@ const scoreWorker = new Worker('score', async (job) => {
         jobId: job.id,
         endpointId,
         traceId
-    })
+    });
 
     jobLogger.info('Starting score calculation');
     const { rows } = await pool.query(
@@ -86,24 +86,21 @@ const scoreWorker = new Worker('score', async (job) => {
          [endpointId]
     );
 
-    if (rows.length < 40) {
-        jobLogger.info({ probeCount: rows.length },
-            'Not enough probes for trend calculation'
-        );
-
+    if (rows.length === 0) {
+        jobLogger.info('No probes recorded yet');
         return;
     }
 
-    const recentProbes = rows.slice(0,20);
-    const priorProbes = rows.slice(20,40);
+    const recentProbes = rows.slice(0, Math.min(20, rows.length));
+    const priorProbes = rows.length >= 40 ? rows.slice(20, 40) : (rows.length > 20 ? rows.slice(20, rows.length) : []);
 
     const recentAgg = aggregateWindow(recentProbes);
-    const priorAgg = aggregateWindow(priorProbes);
+    const priorAgg = priorProbes.length > 0 ? aggregateWindow(priorProbes) : recentAgg;
 
-    const recentScore = computeScore({ ...recentAgg, baseline_p95: 500, });
-    const priorScore = computeScore({ ...priorAgg, baseline_p95: 500, });
+    const recentScore = computeScore({ ...recentAgg, baseline_p95: 500 });
+    const priorScore = computeScore({ ...priorAgg, baseline_p95: 500 });
 
-    const trend = recentScore - priorScore;
+    const trend = rows.length >= 40 ? (recentScore - priorScore) : 0;
 
     const TREND_THRESHOLD = 0.15;
 
@@ -123,10 +120,10 @@ const scoreWorker = new Worker('score', async (job) => {
 
     await pool.query(
         `INSERT INTO endpoint_scores (endpoint_id, score, p95_latency_ms, error_rate, timeout_rate, computed_at)
-        VALUES ($1, $2, $3, $4, $5, $6, now())
+        VALUES ($1, $2, $3, $4, $5, now())
         ON CONFLICT (endpoint_id) DO UPDATE
         SET score = $2, p95_latency_ms = $3, error_rate = $4, timeout_rate = $5, computed_at = now()`,
-        [endpointId, recentScore, recentAgg.p95_latency, recentAgg.error_rate, recentAgg.timeout_rate, trend]
+        [endpointId, recentScore, Math.round(recentAgg.p95_latency), recentAgg.error_rate, recentAgg.timeout_rate]
     );
 
     await redis.set(`health:${endpointId}`, JSON.stringify({ score: recentScore, trend, computed_at: new Date() }), 'EX', 120);
@@ -142,7 +139,7 @@ const scoreWorker = new Worker('score', async (job) => {
         trend
     }));
 
-    jobLogger.info({ recentScore, priorScore, trend }, 'Score calculation complete');
+    jobLogger.info({ recentScore, priorScore, trend, probeCount: rows.length }, 'Score calculation complete');
 
     if (recentScore > 0.7) {
         const existing = await pool.query(
@@ -164,6 +161,13 @@ const scoreWorker = new Worker('score', async (job) => {
             });
             jobLogger.info('Alert job created');
         }
+    } else {
+        // Endpoint recovered below incident threshold - resolve active incidents
+        await pool.query(
+            `UPDATE incidents SET resolved_at = now()
+            WHERE endpoint_id = $1 AND resolved_at IS NULL`,
+            [endpointId]
+        );
     }
 
     if (isWorsening && !isAlreadyIncident) {

@@ -1,0 +1,5 @@
+name,url,interval_seconds
+Google Search,https://www.google.com,30
+GitHub API,https://api.github.com,60
+Example Domain,https://example.com,15
+JSONPlaceholder,https://jsonplaceholder.typicode.com/posts/1,45

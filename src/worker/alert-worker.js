@@ -39,7 +39,7 @@ const alertWorker = new Worker('alert', async (job) => {
     }
 
     const userResult = await pool.query(
-        `SELECT u.email, u.alert_channel, u.alert_target, e.url AS endpoint_url
+        `SELECT u.email, u.alert_channel, u.alert_target, u.webhook_url, e.url AS endpoint_url
          FROM incidents i
          JOIN endpoints e ON e.id = i.endpoint_id
          JOIN users u ON u.id = e.user_id
@@ -51,20 +51,16 @@ const alertWorker = new Worker('alert', async (job) => {
         throw new Error(`Could not find user/endpoint for incident ${incidentId}`);
     }
 
-    const { email, alert_channel, alert_target, endpoint_url } = userResult.rows[0];
-    const channel = alert_channel || 'email';
-    const target = alert_target || email;
+    const { email, alert_channel, alert_target, webhook_url, endpoint_url } = userResult.rows[0];
+    const channelStr = alert_channel || 'email';
+    const activeChannels = channelStr.split(',').map((c) => c.trim().toLowerCase()).filter(Boolean);
 
-    const deliver = CHANNELS[channel];
-    if (!deliver) {
-        throw new Error(`Unknown alert channel: ${channel}`);
-    }
+    const safePrior = typeof priorScore === 'number' ? priorScore.toFixed(2) : '0.00';
+    const safeRecent = typeof recentScore === 'number' ? recentScore.toFixed(2) : '0.00';
 
-    if (!target) {
-        throw new Error(`No alert target configured for user ${email}`);
-    }
-
-    const message = dbIncidentType === 'early_warning' ? `Endpoint ${endpoint_url} is trending towards degredation (score moved from ${priorScore.toFixed(2)} to ${recentScore.toFixed(2)}). Check your Harbinger dashboard for details` : `Endpoint ${endpoint_url} is degraded (health score exceeded threshold). Check your harbinger dashboard for details`;
+    const message = dbIncidentType === 'early_warning'
+        ? `Endpoint ${endpoint_url} is trending towards degradation (score moved from ${safePrior} to ${safeRecent}). Check your Harbinger dashboard for details.`
+        : `Endpoint ${endpoint_url} is degraded (health score exceeded threshold). Check your Harbinger dashboard for details.`;
 
     const payload = {
         alert_id: alertId,
@@ -72,17 +68,41 @@ const alertWorker = new Worker('alert', async (job) => {
         endpoint_id: endpointId,
         endpoint_url,
         incident_type: dbIncidentType,
-        recent_score: recentScore,
-        prior_score: priorScore,
+        recent_score: recentScore ?? 0,
+        prior_score: priorScore ?? 0,
         trend,
         message,
         timestamp: new Date().toISOString(),
     };
 
-    await deliver(target, payload);
+    let deliveredCount = 0;
+
+    if (activeChannels.includes('email') || activeChannels.includes('all')) {
+        const targetEmail = alert_target || email;
+        if (targetEmail) {
+            try {
+                await CHANNELS.email(targetEmail, payload);
+                deliveredCount++;
+            } catch (err) {
+                jobLogger.error({ err: err.message }, 'Failed to deliver email alert');
+            }
+        }
+    }
+
+    if (activeChannels.includes('webhook') || activeChannels.includes('slack') || activeChannels.includes('all')) {
+        const targetWebhook = webhook_url || alert_target;
+        if (targetWebhook && targetWebhook.startsWith('http')) {
+            try {
+                await CHANNELS.webhook(targetWebhook, payload);
+                deliveredCount++;
+            } catch (err) {
+                jobLogger.error({ err: err.message }, 'Failed to deliver webhook alert');
+            }
+        }
+    }
 
     await pool.query(`UPDATE incidents SET alert_sent = true WHERE id = $1`, [incidentId]);
-    jobLogger.info({ channel, target }, 'Alert delivered successfully');
+    jobLogger.info({ activeChannels, deliveredCount }, 'Alert delivery completed');
 }, { connection });
 
 alertWorker.on('completed', (job) => console.log(`Alert job ${job.id} delivered`));
