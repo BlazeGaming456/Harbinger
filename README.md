@@ -2,22 +2,22 @@
 
 **Harbinger detects API degradation before vendor status pages acknowledge it — by continuously scoring behavioral anomalies across response time, error rate, and timeout patterns, rather than waiting for a full outage.**
 
-# Home Page 
+## Home Page 
 ![alt text](image.png)
 
-# Log In/Sign Up
+## Log In/Sign Up
 ![alt text](image-1.png)
 
-# Overview Page
+## Overview Page
 ![alt text](image-2.png)
 
-# Endpoints Page
+## Endpoints Page
 ![alt text](image-3.png)
 
-# Endpoint Details Page
+## Endpoint Details Page
 ![alt text](image-4.png)
 
-# Settings Page
+## Settings Page
 ![alt text](image-5.png)
 
 Live demo: `[your Render/Vercel link here]`
