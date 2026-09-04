@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/node';
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
+    sampleRate: Number(process.env.SENTRY_ERROR_SAMPLE_RATE || 0.2),
   tracesSampleRate: 0.1
 });
 
