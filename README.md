@@ -75,7 +75,7 @@ You also get a live dashboard: real-time score updates over WebSocket, a latency
                             │  Fastify API  │◄──────────┐
                             │   (Render)    │           │
                             └───────┬───────┘           │
-                                    │                   │pub/sub
+                                    │                   │ pub/sub
                     ┌───────────────┼────────────────┐  │
                     ▼               ▼                ▼  │
               ┌──────────┐   ┌────────────┐   ┌──────────────┐

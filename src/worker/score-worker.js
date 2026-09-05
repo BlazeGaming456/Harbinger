@@ -143,7 +143,14 @@ const scoreWorker = new Worker(
 
     await redis.set(
       `health:${endpointId}`,
-      JSON.stringify({ score: recentScore, trend, computed_at: new Date() }),
+      JSON.stringify({
+        score: recentScore,
+        p95_latency_ms: Math.round(recentAgg.p95_latency),
+        error_rate: recentAgg.error_rate,
+        timeout_rate: recentAgg.timeout_rate,
+        trend,
+        computed_at: new Date(),
+      }),
       "EX",
       120,
     );
@@ -187,6 +194,9 @@ const scoreWorker = new Worker(
           alertId: incident.rows[0].alert_id,
           endpointId,
           traceId,
+          recentScore,
+          priorScore,
+          trend,
         });
         jobLogger.info("Alert job created");
       } else if (

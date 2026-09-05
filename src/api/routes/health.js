@@ -23,6 +23,8 @@ export async function healthRoutes(app) {
         return {
           ...data,
           score: data.score != null ? Number(data.score) : null,
+          p95_latency_ms:
+            data.p95_latency_ms != null ? Number(data.p95_latency_ms) : null,
           error_rate: data.error_rate != null ? Number(data.error_rate) : null,
           timeout_rate:
             data.timeout_rate != null ? Number(data.timeout_rate) : null,
@@ -57,6 +59,8 @@ export async function healthRoutes(app) {
       const payload = {
         ...row,
         score: row.score != null ? Number(row.score) : null,
+        p95_latency_ms:
+          row.p95_latency_ms != null ? Number(row.p95_latency_ms) : null,
         error_rate: row.error_rate != null ? Number(row.error_rate) : null,
         timeout_rate:
           row.timeout_rate != null ? Number(row.timeout_rate) : null,
