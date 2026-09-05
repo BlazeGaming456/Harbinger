@@ -12,11 +12,6 @@ Sentry.init({
 
 const logger = pino();
 
-const connection = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: process.env.REDIS_PORT || 6379,
-};
-
 const alertWorker = new Worker(
   "alert",
   async (job) => {
@@ -166,7 +161,7 @@ const alertWorker = new Worker(
       "Alert delivery completed",
     );
   },
-  { connection },
+  { connection: redis },
 );
 
 alertWorker.on("completed", (job) =>

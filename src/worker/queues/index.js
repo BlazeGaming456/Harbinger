@@ -1,16 +1,10 @@
 import { Queue } from "bullmq";
+import redis from "../db/redis.js";
 
-const connection = process.env.REDIS_URL
-  ? { url: process.env.REDIS_URL }
-  : {
-      host: process.env.REDIS_HOST || "localhost",
-      port: process.env.REDIS_PORT || 6379,
-    };
-
-export const probeQueue = new Queue("probe", { connection });
-export const scoreQueue = new Queue("score", { connection });
+export const probeQueue = new Queue("probe", { connection: redis });
+export const scoreQueue = new Queue("score", { connection: redis });
 export const alertQueue = new Queue("alert", {
-  connection,
+  connection: redis,
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: 'exponential', delay: 2000 },

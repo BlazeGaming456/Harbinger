@@ -11,8 +11,8 @@ import client from "prom-client";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import websocket from "@fastify/websocket";
-import Redis from "ioredis";
 import jwt from "jsonwebtoken";
+import redis from "./db/redis.js";
 
 const app = Fastify({
   logger: true,
@@ -93,10 +93,7 @@ function broadcastToUser(userId, data) {
 }
 
 //Redis Pub/Sub
-const subscriber = new Redis({
-  host: process.env.REDIS_HOST || "localhost",
-  port: process.env.REDIS_PORT || 6379,
-});
+const subscriber = redis.duplicate();
 
 await subscriber.subscribe("score-updates");
 

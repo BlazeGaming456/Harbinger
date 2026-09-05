@@ -4,6 +4,7 @@ import { scoreQueue } from './queues/index.js';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
 import { isCircuitOpen, recordResult } from './circuitBreaker.js';
+import redis from './db/redis.js';
 
 Sentry.init({
     dsn: process.env.SENTRY_DSN,
@@ -12,11 +13,6 @@ Sentry.init({
 })
 
 const logger = pino();
-
-const connection = {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
-};
 
 async function probeUrl(url, timeoutMs = 10000) {
     const controller = new AbortController();
@@ -75,7 +71,7 @@ const probeWorker = new Worker('probe', async (job) => {
     );
 
     await scoreQueue.add('score', { endpointId, traceId: job.id });
-}, { connection });
+}, { connection: redis });
 
 probeWorker.on('completed', (job) => console.log(`Job ${job.id} done`));
 probeWorker.on('failed', (job, err) => Sentry.captureException(err, { extra: { jobId: job.id, endpointId: job.data.endpointId }}));

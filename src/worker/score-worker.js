@@ -27,11 +27,6 @@ Sentry.init({
 
 const logger = pino();
 
-const connection = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: process.env.REDIS_PORT || 6379,
-};
-
 function computeScore({ p95_latency, error_rate, timeout_rate, baseline_p95 }) {
   const latencyScore = Math.min(p95_latency / (baseline_p95 * 3), 1);
   const score = latencyScore * 0.3 + error_rate * 0.4 + timeout_rate * 0.3;
@@ -245,7 +240,7 @@ const scoreWorker = new Worker(
       );
     }
   },
-  { connection },
+  { connection: redis },
 );
 
 scoreWorker.on("completed", (job) => console.log(`Job ${job.id} done`));
