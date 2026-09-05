@@ -1,4 +1,4 @@
-import pool from '../../db/pool.js';
+import pool from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 
 export async function userRoutes(app) {

@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import pool from "../db/pool.js";
+import pool from "./db/pool.js";
 import pino from "pino";
 import * as Sentry from "@sentry/node";
 import { CHANNELS } from "./alertChannel.js";

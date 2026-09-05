@@ -1,5 +1,5 @@
-import pool from '../db/pool.js';
-import { probeQueue } from '../queues/index.js';
+import pool from './db/pool.js';
+import { probeQueue } from './queues/index.js';
 import * as Sentry from '@sentry/node';
 
 Sentry.init({

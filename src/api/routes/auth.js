@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import pool from "../../db/pool.js";
+import pool from "../db/pool.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { rateLimit } from "../middleware/rateLimit.js";

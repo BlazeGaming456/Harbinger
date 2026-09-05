@@ -1,5 +1,5 @@
-import redis from "../../db/redis.js";
-import pool from "../../db/pool.js";
+import redis from "../db/redis.js";
+import pool from "../db/pool.js";
 import { requireAuth } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 

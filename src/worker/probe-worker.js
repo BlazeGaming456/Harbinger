@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq';
-import pool from '../db/pool.js';
-import { scoreQueue } from '../queues/index.js';
+import pool from './db/pool.js';
+import { scoreQueue } from './queues/index.js';
 import pino from 'pino';
 import * as Sentry from '@sentry/node';
 import { isCircuitOpen, recordResult } from './circuitBreaker.js';

@@ -1,7 +1,7 @@
 import { Worker } from "bullmq";
-import pool from "../db/pool.js";
-import redis from "../db/redis.js";
-import { alertQueue } from "../queues/index.js";
+import pool from "./db/pool.js";
+import redis from "./db/redis.js";
+import { alertQueue } from "./queues/index.js";
 import pino from "pino";
 import * as Sentry from "@sentry/node";
 import client from "prom-client";

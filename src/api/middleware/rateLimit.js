@@ -1,4 +1,4 @@
-import redis from '../../db/redis.js';
+import redis from '../db/redis.js';
 
 const WINDOW_MS = 60 * 1000;
 const MAX_REQUESTS = 200;

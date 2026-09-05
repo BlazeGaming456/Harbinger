@@ -1,4 +1,4 @@
-import redis from '../db/redis.js';
+import redis from './db/redis.js';
 
 const FAILURE_THRESHOLD = 5;
 const COOLDOWN_SECONDS = 300; //5 mins
