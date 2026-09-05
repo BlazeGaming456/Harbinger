@@ -1,6 +1,7 @@
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS alert_channel TEXT NOT NULL DEFAULT 'email',
-  ADD COLUMN IF NOT EXISTS alert_target TEXT;
+  ADD COLUMN IF NOT EXISTS alert_target TEXT,
+  ADD COLUMN IF NOT EXISTS webhook_url TEXT;
 
 -- Prefer email alerts when no webhook is configured
 UPDATE users

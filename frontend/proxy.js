@@ -1,18 +1,8 @@
 import { NextResponse } from 'next/server';
 
-export function proxy(request) {
-    const refreshToken = request.cookies.get('refreshToken');
-    const path = request.nextUrl.pathname;
-    const isAuthPage = path === '/login' || path === '/signup' || path === '/forgot-password' || path === '/reset-password';
-    const isProtected = path.startsWith('/dashboard') || path.startsWith('/endpoints') || path.startsWith('/settings');
-
-    if (!refreshToken && isProtected) {
-        return NextResponse.redirect(new URL('/login', request.url));
-    }
-    if (refreshToken && isAuthPage) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-
+export function proxy() {
+    // Refresh cookies live on the API host (Render), not on Vercel.
+    // Auth is enforced client-side via AuthContext after /auth/refresh.
     return NextResponse.next();
 }
 

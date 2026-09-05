@@ -3,6 +3,7 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import * as Sentry from "@sentry/node";
 import { randomUUID } from "crypto";
+import pool from "./db/pool.js";
 import { authRoutes } from "./routes/auth.js";
 import { endpointRoutes } from "./routes/endpoints.js";
 import { healthRoutes } from "./routes/health.js";
@@ -19,25 +20,48 @@ const app = Fastify({
   genReqId: (req) => req.headers["x-request-id"] || randomUUID(),
 });
 
-//CORS
+function stripTrailingSlash(url) {
+  return url ? url.replace(/\/$/, "") : url;
+}
+
 const allowedOrigins = [
-    'https://harbinger-frontend-cyan.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:5173',
-    process.env.FRONTEND_URL,
+  "https://harbinger-frontend-cyan.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  stripTrailingSlash(process.env.FRONTEND_URL),
 ].filter(Boolean);
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  const normalized = stripTrailingSlash(origin);
+  if (allowedOrigins.includes(normalized)) return true;
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname.endsWith(".vercel.app") && hostname.includes("harbinger-frontend")
+    );
+  } catch {
+    return false;
+  }
+}
+
 await app.register(cors, {
-    origin: (origin, cb) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Not allowed by CORS'), false);
-        }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'Accept'],
+  origin: (origin, cb) => {
+    if (isAllowedOrigin(origin)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Not allowed by CORS"), false);
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Authorization",
+    "Content-Type",
+    "X-Requested-With",
+    "Accept",
+  ],
 });
 
 //API documentation via swagger
@@ -224,6 +248,30 @@ app.register(healthRoutes);
 app.register(userRoutes);
 
 app.get("/health", async () => ({ status: "ok" }));
+
+app.get("/ready", async (request, reply) => {
+  const checks = { database: false, redis: false };
+
+  try {
+    await pool.query("SELECT 1");
+    checks.database = true;
+  } catch (error) {
+    request.log.error({ err: error }, "Ready check: database failed");
+  }
+
+  try {
+    const pong = await redis.ping();
+    checks.redis = pong === "PONG";
+  } catch (error) {
+    request.log.error({ err: error }, "Ready check: redis failed");
+  }
+
+  const ready = checks.database && checks.redis;
+  return reply.code(ready ? 200 : 503).send({
+    status: ready ? "ready" : "degraded",
+    checks,
+  });
+});
 
 const start = async () => {
   try {
