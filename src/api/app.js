@@ -21,20 +21,23 @@ const app = Fastify({
 
 //CORS
 const allowedOrigins = [
-    'https://harbinger-frontend-cyan.vercel.app/',
+    'https://harbinger-frontend-cyan.vercel.app',
+    'http://localhost:3000',
     'http://localhost:5173',
-];
+    process.env.FRONTEND_URL,
+].filter(Boolean);
 
 await app.register(cors, {
     origin: (origin, cb) => {
         if (!origin || allowedOrigins.includes(origin)) {
             cb(null, true);
-        }
-        else {
+        } else {
             cb(new Error('Not allowed by CORS'), false);
         }
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'Accept'],
 });
 
 //API documentation via swagger
