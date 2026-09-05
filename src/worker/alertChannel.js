@@ -5,27 +5,30 @@ function getResendClient() {
 }
 
 export async function deliverWebhook(webhookUrl, payload) {
-  if (!webhookUrl || typeof webhookUrl !== 'string') {
-    throw new Error('Invalid webhook URL');
+  if (!webhookUrl || typeof webhookUrl !== "string") {
+    throw new Error("Invalid webhook URL");
   }
 
-  const isSlack = webhookUrl.includes('hooks.slack.com') || webhookUrl.includes('slack.com');
-  const isDiscord = webhookUrl.includes('discord.com/api/webhooks');
+  const isSlack =
+    webhookUrl.includes("hooks.slack.com") || webhookUrl.includes("slack.com");
+  const isDiscord = webhookUrl.includes("discord.com/api/webhooks");
 
   let body;
   const headers = { "Content-Type": "application/json" };
-  const scoreVal = payload.recent_score ?? payload.recentScore ?? payload.score ?? 0;
-  const scoreStr = typeof scoreVal === 'number' ? scoreVal.toFixed(2) : String(scoreVal);
+  const scoreVal =
+    payload.recent_score ?? payload.recentScore ?? payload.score ?? 0;
+  const scoreStr =
+    typeof scoreVal === "number" ? scoreVal.toFixed(2) : String(scoreVal);
 
   if (isSlack) {
     const emoji = payload.incident_type === "early_warning" ? "⚠️" : "🚨";
     body = JSON.stringify({
-      text: `${emoji} *Harbinger Alert*: ${payload.message}\n• Endpoint: \`${payload.endpoint_url}\`\n• Health Score: *${scoreStr}*`
+      text: `${emoji} *Harbinger Alert*: ${payload.message}\n• Endpoint: \`${payload.endpoint_url}\`\n• Health Score: *${scoreStr}*`,
     });
   } else if (isDiscord) {
     const emoji = payload.incident_type === "early_warning" ? "⚠️" : "🚨";
     body = JSON.stringify({
-      content: `${emoji} **Harbinger Alert**: ${payload.message}\nEndpoint: \`${payload.endpoint_url}\`\nHealth Score: **${scoreStr}**`
+      content: `${emoji} **Harbinger Alert**: ${payload.message}\nEndpoint: \`${payload.endpoint_url}\`\nHealth Score: **${scoreStr}**`,
     });
   } else {
     body = JSON.stringify(payload);

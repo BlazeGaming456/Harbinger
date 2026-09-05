@@ -2,6 +2,12 @@
 
 **Harbinger detects API degradation before vendor status pages acknowledge it — by continuously scoring behavioral anomalies across response time, error rate, and timeout patterns, rather than waiting for a full outage.**
 
+You can visit the live deployed project at https://harbinger-frontend-cyan.vercel.app/
+You can see a video demo of the project at https://youtu.be/IYv3pNzZyYU
+
+## What makes the project non-trivial?
+Harbinger runs as five independent processes — API, scheduler, probe worker, score worker, and alert worker - coordinated through PostgreSQL and Redis rather than one monolithic server. It computes a weighted degradation score (p95 latency, error rate, timeout rate) to catch endpoints that are slow or flaky before they fully fail, with a second layer that flags worsening trends ahead of the hard threshold. Alerts are delivered idempotently, a circuit breaker avoids wasting requests on endpoints already known to be down, and the dashboard updates live over WebSockets via Redis pub/sub instead of polling. It's deployed on real infrastructure, tested, and rate-limited.
+
 ## Home Page 
 ![alt text](image.png)
 
@@ -19,9 +25,6 @@
 
 ## Settings Page
 ![alt text](image-5.png)
-
-Live demo: `[your Render/Vercel link here]`
-Demo video: `[link here]`
 
 ---
 
@@ -42,7 +45,7 @@ Demo video: `[link here]`
 
 ## What it does
 
-Most uptime monitors give you a binary signal: the endpoint returned a 2xx, or it didn't. That's too crude to catch the failure mode that actually costs people the most — an API that's still technically "up" but has quietly gotten slow, flaky, or partially broken.
+Most uptime monitors give you a binary signal: the endpoint returned a 2xx, or it didn't. That's too crude to catch the failure mode that actually costs people the most - an API that's still technically "up" but has quietly gotten slow, flaky, or partially broken.
 
 Harbinger watches endpoints you register, probes them on a schedule, and computes a **weighted degradation score** from three signals over a rolling window of recent probes:
 
@@ -52,7 +55,7 @@ Harbinger watches endpoints you register, probes them on a schedule, and compute
 
 When that score crosses a threshold, an incident opens and an alert fires — through a webhook or email, your choice. A second layer compares the score across two consecutive windows to catch a **worsening trend** even before it crosses the hard threshold, so you get an early warning while things are still getting worse, not only once they're already bad.
 
-You also get a live dashboard: real-time score updates over WebSocket, a latency chart per endpoint, and recent probe history — so this isn't just an API, it's something you can actually watch.
+You also get a live dashboard: real-time score updates over WebSocket, a latency chart per endpoint, and recent probe history - so this isn't just an API, it's something you can actually watch.
 
 ---
 
@@ -72,23 +75,23 @@ You also get a live dashboard: real-time score updates over WebSocket, a latency
                             │  Fastify API  │◄──────────┐
                             │   (Render)    │           │
                             └───────┬───────┘           │
-                                    │                    │ pub/sub
-                    ┌───────────────┼────────────────┐   │
-                    ▼               ▼                ▼   │
+                                    │                   │pub/sub
+                    ┌───────────────┼────────────────┐  │
+                    ▼               ▼                ▼  │
               ┌──────────┐   ┌────────────┐   ┌──────────────┐
               │PostgreSQL│   │   Redis    │◄──┤ Score Worker │
               │  (RDS /  │   │(ElastiCache│   └──────┬───────┘
               │  Render) │   │ / Render)  │          │
               └────┬─────┘   └─────┬──────┘          │
-                   │               │  BullMQ queues   │
-                   │               │                  │
-                   │        ┌──────▼───────┐          │
-                   │        │  Scheduler   │          │
-                   │        └──────┬───────┘          │
-                   │               │ enqueues          │
-                   │               ▼                  │
-                   │        ┌──────────────┐           │
-                   └───────►│ Probe Worker │───────────┘
+                   │               │  BullMQ queues  │
+                   │               │                 │
+                   │        ┌──────▼───────┐         │
+                   │        │  Scheduler   │         │
+                   │        └──────┬───────┘         │
+                   │               │ enqueues        │
+                   │               ▼                 │
+                   │        ┌──────────────┐         │
+                   └───────►│ Probe Worker │─────────┘
                             └──────┬───────┘
                                    │ HTTP request
                                    ▼
@@ -205,7 +208,7 @@ The API runs on `localhost:3000`; the frontend runs on its own dev port (default
 
 ## Deployment
 
-**Primary (live):** Render (API + 4 background workers + managed Postgres + managed Redis) and Vercel (Next.js frontend). Chosen for a genuinely free tier with no card requirement and no billing risk, while still mapping cleanly onto the same architecture — separate compute, managed database, managed cache.
+**Primary (live):** Render (API + 4 background workers +  managed Redis), Supabase (managed Postgres) and Vercel (Next.js frontend). Chosen for a genuinely free tier with no card requirement and no billing risk, while still mapping cleanly onto the same architecture — separate compute, managed database, managed cache.
 
 **Also deployed and verified:** AWS EC2 (compute, managed via PM2), RDS (PostgreSQL), and ElastiCache (Redis), with security groups restricting database/cache access to the EC2 instance only. This was run as a bounded exercise to gain hands-on experience with VPCs, security groups, and managed AWS services, then torn down after verification to avoid ongoing cost — screenshots and notes from that deployment are in `/docs/aws-deployment.md`.
 
