@@ -184,12 +184,10 @@ export async function authRoutes(app) {
   app.post("/auth/reset-password", async (request, reply) => {
     const { token, password } = request.body;
     if (!token || typeof password !== "string" || password.length < 8) {
-      return reply
-        .code(400)
-        .send({
-          error:
-            "A valid reset token and password of at least 8 characters are required.",
-        });
+      return reply.code(400).send({
+        error:
+          "A valid reset token and password of at least 8 characters are required.",
+      });
     }
 
     const result = await pool.query(

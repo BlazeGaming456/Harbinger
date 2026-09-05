@@ -39,7 +39,8 @@ function isAllowedOrigin(origin) {
   try {
     const { hostname } = new URL(origin);
     return (
-      hostname.endsWith(".vercel.app") && hostname.includes("harbinger-frontend")
+      hostname.endsWith(".vercel.app") &&
+      hostname.includes("harbinger-frontend")
     );
   } catch {
     return false;
