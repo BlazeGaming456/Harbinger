@@ -190,31 +190,31 @@ app.setErrorHandler((error, request, reply) => {
 });
 
 await app.register(cookie);
-app.register(cors, {
-  origin: (origin, cb) => {
-    const allowedOrigins = [
-      "http://localhost:3001",
-      "http://localhost:3000",
-      process.env.FRONTEND_URL,
-    ].filter(Boolean);
+// app.register(cors, {
+//   origin: (origin, cb) => {
+//     const allowedOrigins = [
+//       "http://localhost:3001",
+//       "http://localhost:3000",
+//       process.env.FRONTEND_URL,
+//     ].filter(Boolean);
 
-    if (!origin || allowedOrigins.includes(origin)) {
-      cb(null, true);
-      return;
-    }
+//     if (!origin || allowedOrigins.includes(origin)) {
+//       cb(null, true);
+//       return;
+//     }
 
-    cb(new Error("Not allowed by CORS"), false);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Authorization",
-    "Content-Type",
-    "X-Requested-With",
-    "Accept",
-  ],
-  exposedHeaders: ["set-cookie"],
-});
+//     cb(new Error("Not allowed by CORS"), false);
+//   },
+//   credentials: true,
+//   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+//   allowedHeaders: [
+//     "Authorization",
+//     "Content-Type",
+//     "X-Requested-With",
+//     "Accept",
+//   ],
+//   exposedHeaders: ["set-cookie"],
+// });
 app.register(authRoutes);
 app.register(endpointRoutes);
 app.register(healthRoutes);
