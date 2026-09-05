@@ -123,7 +123,14 @@ new Worker(
     );
     await redis.set(
       `health:${endpointId}`,
-      JSON.stringify({ score: recentScore, trend, computed_at: new Date() }),
+      JSON.stringify({
+        score: recentScore,
+        p95_latency_ms: Math.round(recent.p95),
+        error_rate: recent.errors,
+        timeout_rate: recent.timeouts,
+        trend,
+        computed_at: new Date(),
+      }),
       "EX",
       120,
     );
@@ -234,16 +241,19 @@ new Worker(
     )
       return;
     const result = await pool.query(
-      `SELECT u.email, u.alert_channel, u.alert_target, u.webhook_url, e.url AS endpoint_url FROM incidents i JOIN endpoints e ON e.id = i.endpoint_id JOIN users u ON u.id = e.user_id WHERE i.id = $1`,
+      `SELECT u.email, u.alert_channel, u.alert_target, u.webhook_url, e.url AS endpoint_url, es.score AS current_score FROM incidents i JOIN endpoints e ON e.id = i.endpoint_id JOIN users u ON u.id = e.user_id LEFT JOIN endpoint_scores es ON es.endpoint_id = e.id WHERE i.id = $1`,
       [incidentId],
     );
     const user = result.rows[0];
     if (!user)
       throw new Error(`Could not find alert target for incident ${incidentId}`);
+    const effectiveRecentScore =
+      job.data.recentScore ?? Number(user.current_score ?? 0);
+    const effectivePriorScore = job.data.priorScore ?? effectiveRecentScore;
     const message =
       alertKind === "degradation_reminder"
-        ? `Endpoint ${user.endpoint_url} has remained degraded for 24 hours (current health score: ${recentScore.toFixed(2)}). Check your Harbinger dashboard for details.`
-        : `Endpoint ${user.endpoint_url} is degraded (health score exceeded threshold). Check your Harbinger dashboard for details.`;
+        ? `Endpoint ${user.endpoint_url} has remained degraded for 24 hours (current health score: ${effectiveRecentScore.toFixed(2)}). Check your Harbinger dashboard for details.`
+        : `Endpoint ${user.endpoint_url} is degraded (current health score: ${effectiveRecentScore.toFixed(2)}). Check your Harbinger dashboard for details.`;
     const payload = {
       alert_id: alertId,
       incident_id: incidentId,
@@ -251,8 +261,8 @@ new Worker(
       endpoint_url: user.endpoint_url,
       incident_type: incident.incident_type,
       alert_kind: alertKind || incident.incident_type,
-      recent_score: recentScore,
-      prior_score: priorScore,
+      recent_score: effectiveRecentScore,
+      prior_score: effectivePriorScore,
       trend,
       message,
       timestamp: new Date().toISOString(),

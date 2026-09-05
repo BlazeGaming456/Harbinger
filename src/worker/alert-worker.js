@@ -65,10 +65,12 @@ const alertWorker = new Worker(
     }
 
     const userResult = await pool.query(
-      `SELECT u.email, u.alert_channel, u.alert_target, u.webhook_url, e.url AS endpoint_url
+      `SELECT u.email, u.alert_channel, u.alert_target, u.webhook_url, e.url AS endpoint_url,
+            es.score AS current_score
          FROM incidents i
          JOIN endpoints e ON e.id = i.endpoint_id
          JOIN users u ON u.id = e.user_id
+        LEFT JOIN endpoint_scores es ON es.endpoint_id = e.id
          WHERE i.id = $1`,
       [incidentId],
     );
@@ -79,7 +81,18 @@ const alertWorker = new Worker(
       );
     }
 
-    const { email, alert_channel, alert_target, webhook_url, endpoint_url } =
+    const {
+      email,
+      alert_channel,
+      alert_target,
+      webhook_url,
+      endpoint_url,
+      current_score,
+    } = userResult.rows[0];
+    const effectiveRecentScore =
+      typeof recentScore === "number" ? recentScore : Number(current_score ?? 0);
+    const effectivePriorScore =
+      typeof priorScore === "number" ? priorScore : effectiveRecentScore;
       userResult.rows[0];
     const channelStr = alert_channel || "email";
     const activeChannels = channelStr
@@ -87,10 +100,8 @@ const alertWorker = new Worker(
       .map((c) => c.trim().toLowerCase())
       .filter(Boolean);
 
-    const safePrior =
-      typeof priorScore === "number" ? priorScore.toFixed(2) : "0.00";
-    const safeRecent =
-      typeof recentScore === "number" ? recentScore.toFixed(2) : "0.00";
+    const safePrior = effectivePriorScore.toFixed(2);
+    const safeRecent = effectiveRecentScore.toFixed(2);
 
     const message =
       alertKind === "degradation_reminder"
@@ -106,8 +117,8 @@ const alertWorker = new Worker(
       endpoint_url,
       incident_type: dbIncidentType,
       alert_kind: alertKind || dbIncidentType,
-      recent_score: recentScore ?? 0,
-      prior_score: priorScore ?? 0,
+      recent_score: effectiveRecentScore,
+      prior_score: effectivePriorScore,
       trend,
       message,
       timestamp: new Date().toISOString(),
