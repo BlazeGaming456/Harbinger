@@ -1,20 +1,4 @@
 services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: harbinger
-      POSTGRES_PASSWORD: harbinger_dev
-      POSTGRES_DB: harbinger
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U harbinger"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7
     ports:
@@ -32,8 +16,6 @@ services:
     volumes:
       - ./src:/app/src
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     env_file: .env
@@ -47,8 +29,6 @@ services:
     volumes:
       - ./src:/app/src
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     env_file: .env
@@ -60,8 +40,7 @@ services:
     volumes:
       - ./src:/app/src
     command: node src/worker/probe-worker.js
-    depends_on :
-      postgres: { condition: service_healthy }
+    depends_on:
       redis: { condition: service_healthy }
     env_file: .env
 
@@ -73,7 +52,6 @@ services:
       - ./src:/app/src
     command: node src/worker/score-worker.js
     depends_on:
-      postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     env_file: .env
 
@@ -85,9 +63,5 @@ services:
       - ./src:/app/src
     command: node src/worker/alert-worker.js
     depends_on:
-      postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     env_file: .env
-
-volumes:
-  pgdata:
