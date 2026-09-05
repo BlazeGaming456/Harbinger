@@ -40,6 +40,18 @@ function normalizeEmail(email) {
   return email.trim().toLowerCase();
 }
 
+function refreshCookieOptions() {
+  const isProd = process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    secure: isProd,
+    // Cross-site XHR from Vercel → Render needs None; Lax cookies are not sent.
+    sameSite: isProd ? "none" : "lax",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60,
+  };
+}
+
 export async function authRoutes(app) {
   app.post(
     "/auth/signup",
@@ -62,6 +74,7 @@ export async function authRoutes(app) {
             .code(409)
             .send({ error: "An account with that email already exists." });
         }
+        request.log.error({ err: error }, "Signup failed");
         throw error;
       }
     },
@@ -100,13 +113,7 @@ export async function authRoutes(app) {
         [user.id, refreshHash],
       );
 
-      reply.setCookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60,
-      });
+      reply.setCookie("refreshToken", refreshToken, refreshCookieOptions());
 
       return { accessToken };
     },
@@ -259,13 +266,7 @@ export async function authRoutes(app) {
       [currentUser.id, refreshHash],
     );
 
-    reply.setCookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60,
-    });
+    reply.setCookie("refreshToken", refreshToken, refreshCookieOptions());
 
     return { accessToken };
   });
@@ -309,13 +310,7 @@ export async function authRoutes(app) {
       { expiresIn: "15m" },
     );
 
-    reply.setCookie("refreshToken", newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60,
-    });
+    reply.setCookie("refreshToken", newRefreshToken, refreshCookieOptions());
 
     return { accessToken };
   });
@@ -329,7 +324,7 @@ export async function authRoutes(app) {
         [hash],
       );
     }
-    reply.clearCookie("refreshToken");
+    reply.clearCookie("refreshToken", refreshCookieOptions());
     return { success: true };
   });
 
@@ -373,13 +368,7 @@ export async function authRoutes(app) {
       [user.id, refreshHash],
     );
 
-    reply.setCookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60,
-    });
+    reply.setCookie("refreshToken", refreshToken, refreshCookieOptions());
 
     return { accessToken };
   });
