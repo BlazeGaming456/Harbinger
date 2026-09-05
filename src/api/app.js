@@ -19,6 +19,24 @@ const app = Fastify({
   genReqId: (req) => req.headers["x-request-id"] || randomUUID(),
 });
 
+//CORS
+const allowedOrigins = [
+    'https://harbinger-frontend-cyan.vercel.app/',
+    'http://localhost:5173',
+];
+
+await app.register(cors, {
+    origin: (origin, cb) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            cb(null, true);
+        }
+        else {
+            cb(new Error('Not allowed by CORS'), false);
+        }
+    },
+    credentials: true,
+});
+
 //API documentation via swagger
 await app.register(swagger, {
   openapi: {
