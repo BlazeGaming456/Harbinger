@@ -213,7 +213,12 @@ const start = async () => {
   }
 };
 
-start();
+start().then(async () => {
+  if (process.env.RUN_WORKERS === "true") {
+    await import("./scheduler/index.js");
+    await import("./combined-workers.js");
+  }
+});
 
 //Shutting down gracefully
 process.on("SIGTERM", async () => {
