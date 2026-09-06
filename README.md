@@ -3,6 +3,7 @@
 **Harbinger detects API degradation before vendor status pages acknowledge it — by continuously scoring behavioral anomalies across response time, error rate, and timeout patterns, rather than waiting for a full outage.**
 
 You can visit the live deployed project at https://harbinger-frontend-cyan.vercel.app/
+
 You can see a video demo of the project at https://youtu.be/IYv3pNzZyYU
 
 ## What makes the project non-trivial?
