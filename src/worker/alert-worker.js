@@ -3,6 +3,7 @@ import pool from "./db/pool.js";
 import pino from "pino";
 import * as Sentry from "@sentry/node";
 import { CHANNELS } from "./alertChannel.js";
+import redis from "./db/redis.js";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -90,10 +91,12 @@ const alertWorker = new Worker(
       current_score,
     } = userResult.rows[0];
     const effectiveRecentScore =
-      typeof recentScore === "number" ? recentScore : Number(current_score ?? 0);
+      typeof recentScore === "number"
+        ? recentScore
+        : Number(current_score ?? 0);
     const effectivePriorScore =
       typeof priorScore === "number" ? priorScore : effectiveRecentScore;
-      userResult.rows[0];
+    userResult.rows[0];
     const channelStr = alert_channel || "email";
     const activeChannels = channelStr
       .split(",")
