@@ -29,6 +29,37 @@ Harbinger runs as five independent processes — API, scheduler, probe worker, s
 
 ---
 
+## AWS deployment proof
+
+Since the primary Render deployment runs all five processes combined into a single Web Service (a free-tier workaround, not an architectural choice — see [Documented but not built]), the AWS deployment is where the true five-independent-process design is actually demonstrated running as five separate OS processes.
+
+**Infrastructure provisioned:** EC2 (`t2.micro`, Ubuntu 22.04), RDS (`db.t3.micro`, PostgreSQL), and ElastiCache (`cache.t4g.micro`, Redis), each in security groups that only permit traffic from EC2 — RDS and Redis are not reachable from the public internet at all.
+
+**All five processes running independently under PM2:**
+![alt text](aws-2.png)
+
+`pm2 status` on the EC2 instance, showing `api`, `scheduler`, `probe-worker`, `score-worker`, and `alert-worker` as five distinct, independently-restartable OS processes — unlike the Render deployment, nothing here is merged.
+
+**End-to-end pipeline verified against real managed infrastructure:**
+![alt text](aws-3.png)
+
+`pm2 logs` capturing a full probe lifecycle running against RDS and ElastiCache rather than local containers: the scheduler enqueues a job, the probe worker executes the HTTP request, the score worker computes a degradation score, and the alert worker delivers a notification once an incident opened.
+
+**API reachable from the public internet, database and cache are not:**
+![alt text](aws-1.png)
+
+A signup request succeeding against the EC2-hosted API, alongside confirmation that direct connections to RDS/ElastiCache are rejected from outside the VPC — demonstrating the security-group boundary described above actually holds.
+
+This deployment was torn down after verification (RDS and ElastiCache deleted, EC2 terminated) to avoid ongoing cost, consistent with running it as a bounded infrastructure exercise rather than a second permanent deployment.
+
+![alt text](aws-4.png)
+
+![alt text](aws-5.png)
+
+![alt text](aws-6.png)
+
+---
+
 ## Table of contents
 
 - [What it does](#what-it-does)
